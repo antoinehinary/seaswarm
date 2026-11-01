@@ -26,7 +26,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from seaswarm.config import DefaultConfig, LeewayObjectConfig, OUNoiseConfig, Scenario
+from seaswarm.config import DefaultConfig, LeewayObjectConfig, LkpConfig, OUNoiseConfig, Scenario
 from seaswarm.units import SECONDS_PER_HOUR
 from seaswarm.world.ocean import CurrentField, OUProcess, WindField, make_current
 
@@ -186,6 +186,11 @@ class ParticleDrift:
                 process.step(dt_s, self._rng)
         jibes = self._rng.random(len(self._xy)) < self.leeway.jibe_probability(dt_s)
         self._side[jibes] *= -1.0
+
+
+def sample_around_lkp(lkp: LkpConfig, n: int, rng: np.random.Generator) -> Array:
+    """Draw n fall positions (N, 2) m from the isotropic Gaussian N(LKP, sigma_m^2) prior."""
+    return np.array([lkp.x_m, lkp.y_m]) + lkp.sigma_m * rng.standard_normal((n, 2))
 
 
 def simulate(

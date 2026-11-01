@@ -24,6 +24,7 @@ class ScenarioRng:
     sensors: np.random.Generator
     initial_position: np.random.Generator
     planner_tiebreak: np.random.Generator
+    particles: np.random.Generator  # Monte Carlo particle clouds (demos, belief validation)
 
 
 def make_rngs(seed: int) -> ScenarioRng:
