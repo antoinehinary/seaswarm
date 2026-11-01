@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-tests:
+    name: Lint and tests (no LLM, no network, headless)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        # The annotate plugin turns each failing test into a GitHub annotation (file, line, error).
+        run: pip install -e ".[dev]" "pytest-github-actions-annotate-failures==0.4.2"
+      - name: Check mcp stays on 1.x
+        run: python -c "import importlib.metadata as m; v = m.version('mcp'); assert v.startswith('1.'), v; print('mcp', v)"
+      - name: Ruff
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Tests
+        run: pytest -m "not ollama and not bench" -rs

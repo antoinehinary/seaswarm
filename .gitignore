@@ -1,0 +1,25 @@
+# Environment and secrets
+.venv/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Run outputs (results/README.md and the final summary are committed explicitly)
+results/*
+!results/README.md
+!results/summary.md
+runs/
+data/cache/
+media/tmp/
+*.log
+
+# OS / editor
+.DS_Store
+.vscode/

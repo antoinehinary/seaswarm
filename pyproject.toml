@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "seaswarm"
+dynamic = ["version"]
+description = "A heterogeneous drone and USV swarm searching for a person in water with a Bayesian probability map, directed in plain language through an LLM agent over MCP."
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=2.0",            # grids, particles, kinematics
+    "scipy>=1.14",           # ndimage shift / gaussian_filter / map_coordinates for the belief predict step
+    "matplotlib>=3.9",       # replays and plots (Agg backend in scripts and CI)
+    "imageio[ffmpeg]>=2.34", # GIF / MP4 export; the ffmpeg binary ships with the wheel
+    "pydantic>=2.7",         # typed, validated config and MCP tool schemas
+    "pyyaml>=6.0",           # config/ and scenarios/
+    # mcp 2.x renamed FastMCP and breaks mcpadapt (smolagents' MCP bridge), which itself
+    # only requires mcp>=1.10 with no upper bound: this pin is what keeps us on 1.x.
+    # The [ws] extra provides websockets, which mcpadapt imports unconditionally.
+    "mcp[ws]>=1.20,<2",
+    "smolagents[mcp,litellm]>=1.26",
+    "python-dotenv>=1.0",    # load SEASWARM_MODEL_ID / API keys from .env
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+# seaswarm-agent = "seaswarm.agent.cli:main"   # Phase 5
+
+[tool.setuptools.dynamic]
+version = { attr = "seaswarm.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "NPY", "D101", "D102", "D103"]
+
+[tool.ruff.lint.per-file-ignores]
+# test names say what they check
+"tests/*" = ["D101", "D102", "D103"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = [
+    "ollama: needs a running Ollama server with qwen3:8b (skipped in CI)",
+    "bench: timing benchmark, prints numbers (skipped in CI)",
+]
