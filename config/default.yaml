@@ -1,0 +1,19 @@
+# Project-wide defaults. All values SI. Scenario-specific values live in scenarios/*.yaml.
+
+sim:
+  dt_s: 1.0                       # simulation time step
+
+# Leeway coefficients per search-object class: speed = slope * |W10| + offset.
+# PIW-1 from OpenDrift opendrift/models/OBJECTPROP.DAT (US Coast Guard leeway method,
+# Allen and Plourde 1999), converted to SI: slopes from %, offsets and std errors from cm/s.
+# Illustrative values from public literature, not validated for operational use.
+leeway_objects:
+  PIW-1:
+    description: "Person-in-water (PIW), unknown state (mean values)"
+    downwind_slope: 0.0096        # 0.96 %
+    downwind_offset_mps: 0.0
+    downwind_sigma_mps: 0.12      # 12 cm/s
+    crosswind_slope: 0.0054       # +/- 0.54 %
+    crosswind_offset_mps: 0.0
+    crosswind_sigma_mps: 0.094    # 9.4 cm/s
+    jibe_probability_per_h: 0.04  # OpenDrift default, consistent with Allen (2005)

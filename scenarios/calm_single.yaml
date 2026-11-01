@@ -1,0 +1,12 @@
+# Light wind, steady current, one drone. Hand-written demo scenario.
+id: calm_single
+seed: 1
+area: {width_m: 10000, height_m: 10000, cell_size_m: 100}
+base: {x_m: 0, y_m: -6000}
+lkp: {x_m: -1500, y_m: -1000, sigma_m: 200, time_since_fall_s: 600}
+wind: {type: uniform, speed_mps: 4.0, from_bearing_deg: 250}
+current: {type: uniform, speed_mps: 0.3, to_bearing_deg: 60}
+drift: {object: PIW-1, tau_s: 1800}
+daylight: true
+fleet: {drones_eo: 1, drones_thermal: 0, usvs: 0}
+limits: {max_sim_time_s: 10800, max_steps: 20000}

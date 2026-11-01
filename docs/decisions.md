@@ -51,3 +51,21 @@ One entry per real decision: date, decision, why, alternatives considered.
 - **Why:** same pattern as skypilot-agent; lets the operator switch model without exporting
   variables in every shell. Environment variables already set always take precedence.
 - **Alternatives:** read `os.environ` only.
+
+## 2026-11-01 — ENU origin at the search-area centre, not at the base
+
+- **Decision:** the local ENU frame has its origin at the centre of the search area; the base is
+  a configurable point in that frame (for example `(0, -6000)`, 1 km south of a 10 km area).
+- **Why:** scenario files place the base outside the area, which only makes sense with an
+  area-centred origin. The grid is then symmetric about the origin and grid indexing needs no
+  offset. Bearings and distances "from base" are computed relative to the base point.
+- **Alternatives:** origin at the base, with an explicit area centre in every scenario.
+
+## 2026-11-01 — Scenario schema lives in `config.py`
+
+- **Decision:** the pydantic `Scenario` model is defined in `seaswarm.config` from Phase 1;
+  `eval/scenario.py` (Phase 4) will only hold the random scenario generator.
+- **Why:** the drift demo already needs scenarios, and keeping every YAML schema in one module
+  makes the "no unknown keys" rule easy to audit.
+- **Alternatives:** schema in `eval/scenario.py` imported by the world modules (makes the
+  simulator depend on the evaluation package).

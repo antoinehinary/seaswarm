@@ -1,0 +1,22 @@
+# Strong gusty wind backing slowly, shear current, mixed fleet. Hand-written demo scenario.
+id: windy_mixed
+seed: 3
+area: {width_m: 10000, height_m: 10000, cell_size_m: 100}
+base: {x_m: 0, y_m: -6000}
+lkp: {x_m: -2000, y_m: -500, sigma_m: 300, time_since_fall_s: 900}
+wind:
+  type: uniform
+  speed_mps: 12.0
+  from_bearing_deg: 290
+  rotation_deg_per_h: -5.0
+  gusts: {sigma_mps: 1.5, tau_s: 120}
+current:
+  type: linear_gradient
+  speed_mps: 0.45
+  to_bearing_deg: 70
+  shear_per_s: 2.0e-5               # +0.1 m/s per 5 km to the left of the flow
+  noise: {sigma_mps: 0.05, tau_s: 3600}
+drift: {object: PIW-1, tau_s: 1800}
+daylight: true
+fleet: {drones_eo: 2, drones_thermal: 0, usvs: 1}
+limits: {max_sim_time_s: 10800, max_steps: 20000}
