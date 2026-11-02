@@ -106,12 +106,12 @@ class SearchMission:
         self.planner = make_planner(strategy, self.tiles, defaults)
         self.prefs = OperatorPrefs()
 
-        self._sensors: dict[str, SensorModel] = {}
+        self.sensors: dict[str, SensorModel] = {}
         self.capabilities: dict[str, VehicleCapability] = {}
         for spec in fleet_specs(scenario.fleet, defaults):
             cfg = getattr(defaults.vehicles, spec.vehicle_type.value)
             sensor_cfg = defaults.sensors[spec.sensor]
-            self._sensors[spec.vehicle_id] = SensorModel.from_config(
+            self.sensors[spec.vehicle_id] = SensorModel.from_config(
                 sensor_cfg, scenario.daylight, spec.altitude_m
             )
             self.capabilities[spec.vehicle_id] = VehicleCapability.build(
@@ -184,7 +184,7 @@ class SearchMission:
             return
         look = footprint(
             self.belief.grid,
-            self._sensors[report.vehicle_id],
+            self.sensors[report.vehicle_id],
             report.x_m,
             report.y_m,
             self.defaults.belief.pod_points_per_r_max,
