@@ -232,3 +232,19 @@ def _whole_steps(duration_s: float, dt_s: float, name: str) -> int:
     if steps < 1 or abs(steps * dt_s - duration_s) > 1e-9 * max(1.0, duration_s):
         raise ValueError(f"{name} ({duration_s} s) is not a whole number of {dt_s} s steps")
     return steps
+
+
+def drift_cloud(
+    scenario: Scenario, defaults: DefaultConfig, n: int, rng: np.random.Generator, duration_s: float
+) -> Array:
+    """Monte Carlo sample of the person's position `duration_s` after the fall, shape (n, 2) m.
+
+    Each particle draws its own fall position around the LKP and its own noise, so the cloud is
+    a sample of the distribution the probability map approximates.
+    """
+    cloud = ParticleDrift.from_scenario(
+        scenario, defaults, sample_around_lkp(scenario.lkp, n, rng), rng
+    )
+    dt_s = defaults.sim.dt_s
+    simulate(cloud, duration_s, dt_s, duration_s, max_steps=scenario.limits.max_steps)
+    return cloud.positions_m

@@ -20,6 +20,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import fft
 
+from seaswarm.config import DefaultConfig, Scenario
+from seaswarm.search.grid import Grid
 from seaswarm.search.motion import BeliefMotion
 from seaswarm.search.probability_map import ProbabilityMap
 
@@ -76,3 +78,13 @@ def advance(
         predict(pmap, motion, t_s, dt_s)
         t_s += dt_s
     return t_s
+
+
+def belief_at(scenario: Scenario, defaults: DefaultConfig, t_s: float) -> ProbabilityMap:
+    """Prior belief `t_s` after the fall: Gaussian around the LKP, then predict steps."""
+    grid = Grid.from_area(scenario.area)
+    lkp = scenario.lkp
+    pmap = ProbabilityMap.from_gaussian(grid, (lkp.x_m, lkp.y_m), lkp.sigma_m)
+    motion = BeliefMotion.from_scenario(scenario, defaults)
+    advance(pmap, motion, 0.0, t_s, defaults.belief.predict_period_s)
+    return pmap
