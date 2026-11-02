@@ -30,8 +30,8 @@ python scripts/run_search.py --scenario scenarios/windy_mixed.yaml --strategy gr
 | --- | --- | --- |
 | 1 | World and drift | done |
 | 2 | Probability map | done |
-| 3 | Vehicles, safety and baseline search | in review |
-| 4 | Auction planner and evaluation | not started |
+| 3 | Vehicles, safety and baseline search | done |
+| 4 | Auction planner and evaluation | in progress |
 | 5 | Operator agent and MCP server | not started |
 | 6 | Polish, publish and stretch | not started |
 
