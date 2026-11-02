@@ -20,12 +20,14 @@ from enum import StrEnum
 import numpy as np
 
 from seaswarm.config import DefaultConfig, Scenario
+from seaswarm.planning.auction import AuctionPlanner
 from seaswarm.planning.base import (
     Assignment,
     Detection,
     MissionView,
     OperatorPrefs,
     Planner,
+    PriorityArea,
     ReplanTrigger,
     VehicleCapability,
 )
@@ -55,6 +57,11 @@ from seaswarm.vehicles.sim2d import Sim2DBackend, fleet_specs
 logger = logging.getLogger(__name__)
 
 
+# Triggers that may fire often (a vehicle finishing a pattern) are rate-limited; all the others
+# replan at the next step.
+RATE_LIMITED = frozenset({ReplanTrigger.VEHICLE_IDLE})
+
+
 class MissionState(StrEnum):
     """Overall state of the search."""
 
@@ -64,14 +71,21 @@ class MissionState(StrEnum):
     TIMEOUT = "TIMEOUT"
 
 
-def make_planner(name: str, tiles: TileGrid, defaults: DefaultConfig) -> Planner:
+STRATEGIES = ("lawnmower", "greedy", "auction")
+
+
+def make_planner(
+    name: str, tiles: TileGrid, defaults: DefaultConfig, tiebreak: np.random.Generator
+) -> Planner:
     """Planner by strategy name."""
     match name:
         case "greedy":
             return GreedyPlanner(tiles)
         case "lawnmower":
             return LawnmowerPlanner(defaults.planner.lawnmower_prior_mass)
-    raise ValueError(f"unknown strategy {name!r}; choose lawnmower or greedy")
+        case "auction":
+            return AuctionPlanner(tiles, defaults.planner, tiebreak)
+    raise ValueError(f"unknown strategy {name!r}; choose one of {', '.join(STRATEGIES)}")
 
 
 @dataclass
@@ -115,7 +129,7 @@ class SearchMission:
         self.motion = BeliefMotion.from_scenario(scenario, defaults)
         self.success = SuccessTracker()
         self.tiles = TileGrid.from_grid(self.belief.grid, defaults.planner.tile_size_m)
-        self.planner = make_planner(strategy, self.tiles, defaults)
+        self.planner = make_planner(strategy, self.tiles, defaults, rngs.planner_tiebreak)
         self.prefs = OperatorPrefs()
 
         self.sensors: dict[str, SensorModel] = {}
@@ -148,6 +162,7 @@ class SearchMission:
         self._last_event_replan_s = -np.inf
         self._last_recovery_aim_s = -np.inf
         self._pending: set[ReplanTrigger] = {ReplanTrigger.START}
+        self._refused: dict[tuple[str, str | None], float] = {}  # (vehicle, tile) -> refusal time
         self._last_status = {vid: VehicleStatus.IDLE for vid in self.backend.vehicle_ids()}
 
     # ------------------------------------------------------------------ main loop
@@ -247,6 +262,7 @@ class SearchMission:
             {vid: self.guard.tile_of(vid) for vid in self.backend.vehicle_ids()},
             (float(drift[0]), float(drift[1])),
             tuple(self.detections),
+            self._excluded(),
         )
 
     def states(self) -> list[VehicleState]:
@@ -262,18 +278,38 @@ class SearchMission:
                 self._pending.add(ReplanTrigger.VEHICLE_IDLE)
             self._last_status[state.vehicle_id] = state.status
 
+    def set_priority_area(self, area: PriorityArea) -> None:
+        """Add an operator priority area (changes planner utility, never the belief); replans."""
+        active = tuple(a for a in self.prefs.areas if a.expires_s > self.t_s)
+        self.prefs = OperatorPrefs((*active, area))
+        self._event("priority", area_id=area.area_id, weight=area.weight)
+        self._pending.add(ReplanTrigger.PRIORITY)
+
+    def clear_priority_areas(self) -> int:
+        """Remove every operator priority area; replans. Returns how many were removed."""
+        count = len(self.prefs.areas)
+        self.prefs = OperatorPrefs()
+        self._pending.add(ReplanTrigger.PRIORITY)
+        return count
+
     def _maybe_replan(self) -> None:
         if self.t_s - self._last_replan_s >= self.defaults.planner.replan_period_s:
             self._pending.add(ReplanTrigger.PERIODIC)
         if not self._pending:
             return
-        event_only = (
-            ReplanTrigger.PERIODIC not in self._pending and ReplanTrigger.START not in self._pending
-        )
         cooldown = self.defaults.planner.event_replan_cooldown_s
-        if event_only and self.t_s - self._last_event_replan_s < cooldown:
+        if self._pending <= RATE_LIMITED and self.t_s - self._last_event_replan_s < cooldown:
             return
         self.replan(sorted(self._pending))
+
+    def _excluded(self) -> dict[str, frozenset[str | None]]:
+        """Refused (vehicle, tile) choices of the last replan period, not to be proposed again."""
+        horizon = self.defaults.planner.replan_period_s
+        self._refused = {k: t for k, t in self._refused.items() if self.t_s - t < horizon}
+        excluded: dict[str, set[str | None]] = {}
+        for vid, tile in self._refused:
+            excluded.setdefault(vid, set()).add(tile)
+        return {vid: frozenset(tiles) for vid, tiles in excluded.items()}
 
     def replan(self, triggers: list[ReplanTrigger]) -> None:
         """Ask the planner for tasks and submit the changed ones through the safety guard."""
@@ -302,6 +338,7 @@ class SearchMission:
         refusal = self.guard.submit(Proposal(command, tile_id=task.tile_id), self.t_s)
         if refusal is not None:
             self.refusals.append(refusal)
+            self._refused[(state.vehicle_id, task.tile_id)] = self.t_s
             self._event(
                 "refusal",
                 vehicle_id=state.vehicle_id,
@@ -316,6 +353,8 @@ class SearchMission:
         """Keep the detecting drone over the belief mean, send the nearest USV, others home."""
         if self.t_s - self._last_recovery_aim_s < self.defaults.planner.recovery_update_s:
             return
+        if self._last_recovery_aim_s == -np.inf:
+            self._event("replan", triggers=[ReplanTrigger.DETECTION.value], assigned=[])
         self._last_recovery_aim_s = self.t_s
         target = self.belief.mean_m()
         watcher = self.detections[-1].vehicle_id

@@ -52,7 +52,10 @@ class GreedyPlanner:
                 claimed[self._index(own)] = False
             cap = view.capabilities[state.vehicle_id]
             scores = tile_scores(state, cap, values, weights, centres, self.tiles.size_m, view)
-            utility = np.where(claimed, -np.inf, scores.utility)
+            blocked = claimed.copy()
+            for tile_id in view.excluded.get(state.vehicle_id, frozenset()) - {None}:
+                blocked[self._index(tile_id)] = True
+            utility = np.where(blocked, -np.inf, scores.utility)
             best = int(np.argmax(utility))
             if not np.isfinite(utility.flat[best]) or utility.flat[best] <= 0.0:
                 if own is not None:

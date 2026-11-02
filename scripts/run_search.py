@@ -21,7 +21,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse the command line."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--scenario", type=Path, required=True)
-    parser.add_argument("--strategy", choices=["lawnmower", "greedy"], required=True)
+    parser.add_argument("--strategy", choices=["lawnmower", "greedy", "auction"], required=True)
     parser.add_argument("--seed", type=int, help="overrides the scenario seed")
     parser.add_argument("--runs-dir", type=Path, default=Path("runs"))
     parser.add_argument("--gif", type=Path, help="also render a replay GIF")

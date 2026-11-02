@@ -108,6 +108,8 @@ class MissionView:
     current_tiles: dict[str, str | None]
     drift_mps: XY  # mean drift of the belief (forecast current + leeway)
     detections: tuple[Detection, ...] = ()
+    # recently refused choices (vehicle -> tile ids, None for a tile-less task): do not repeat
+    excluded: dict[str, frozenset[str | None]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -155,3 +157,28 @@ class Planner(Protocol):
     ) -> dict[str, Assignment]:
         """Assignments for (some of) the available vehicles; others keep their current task."""
         ...
+
+
+def without_held_tiles(
+    assignments: dict[str, Assignment], view: MissionView
+) -> dict[str, Assignment]:
+    """Drop assignments whose first tile stays held by another vehicle.
+
+    A vehicle keeps its tile if it gets no new first task; another vehicle sent there would be
+    refused by the safety layer (one searcher per tile), so it keeps its current task instead.
+    """
+    moving = {
+        vid
+        for vid, a in assignments.items()
+        if a.tasks and a.tasks[0].tile_id != view.current_tiles.get(vid)
+    }
+    held = {
+        tile: vid
+        for vid, tile in view.current_tiles.items()
+        if tile is not None and vid not in moving
+    }
+    return {
+        vid: a
+        for vid, a in assignments.items()
+        if not a.tasks or held.get(a.tasks[0].tile_id, vid) == vid
+    }

@@ -79,7 +79,7 @@ class LawnmowerPlanner:
                     self._done[vid] = first + count - state.waypoints_left
                 elif state.status is VehicleStatus.IDLE and not at_base:
                     self._done[vid] = first + count  # finished the issued part
-            if state.status is not VehicleStatus.IDLE:
+            if state.status is not VehicleStatus.IDLE or None in view.excluded.get(vid, ()):
                 continue
             pattern = self._patterns[vid]
             start = self._done.get(vid, 0) % len(pattern)

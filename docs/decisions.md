@@ -206,3 +206,24 @@ sweep it, and greedy's focus pays off on both metrics.
 is within 2 sigma of the model's POS_cum in all four cases (-1.7, +0.8, -1.3, -1.6 sigma). The
 slight negative tendency is consistent with the belief's approximations (one Gaussian for the two
 crosswind lobes, current at the map mean, predict up to 60 s behind the looks).
+
+## 2026-11-02 — Auction: time-discounted bundle reward, receding horizon
+
+- **Decision:** bundle value `sum_j gain_j exp(-t_j / tau)`, tau = 3600 s, t_j the time task j
+  would be finished; bundles of up to 3 tiles over the top 3 x fleet tiles; each vehicle executes
+  only its first task and the auction is rerun at every replan. Tiles held by another vehicle,
+  or recently refused for this one, are not on offer.
+- **Why:** the discounted reward is the standard CBBA score: it has diminishing marginal gains
+  (needed for CBBA's convergence guarantees) and encodes that clearing probability later is worth
+  less for a person in water. Ruling out held tiles prevents swap cycles that no submission order
+  can resolve (seen as TILE_OCCUPIED refusals before the rule).
+- **Alternatives:** bundle rate `sum gain / total time` (not submodular: bundles rarely grow).
+
+## 2026-11-02 — Replan triggers are immediate except "vehicle idle"
+
+- **Decision:** detection, low energy, operator priority, refusal, return to service and start
+  replan at the next step; only "vehicle idle" is rate-limited (10 s). After a refusal the
+  refused (vehicle, tile) choice is excluded for one replan period instead of being retried.
+- **Why:** a refused proposal retried unchanged is refused again; excluding it lets the replan be
+  immediate without thrashing. Same rule the operator agent follows in Phase 5.
+- **Alternatives:** a cooldown on every event trigger (misses the one-step requirement).

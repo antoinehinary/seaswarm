@@ -101,3 +101,6 @@ planner:
   event_replan_cooldown_s: 10.0   # event-triggered replans (idle, refusal...) at most this often
   recovery_update_s: 30.0         # after a detection: re-aim the recovery USV this often
   lawnmower_prior_mass: 0.95      # baseline covers the rectangle holding this much prior mass
+  auction_tasks_per_vehicle: 3    # K = 3 x fleet size candidate tiles per auction
+  auction_bundle_size: 3          # B: at most 3 tiles planned ahead per vehicle
+  reward_time_constant_s: 3600.0  # auction reward of clearing probability p at time t: p exp(-t / tau)

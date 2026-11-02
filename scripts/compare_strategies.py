@@ -36,7 +36,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--scenario", type=Path, required=True)
     parser.add_argument("--seeds", default="0-19")
-    parser.add_argument("--strategies", default="lawnmower,greedy")
+    parser.add_argument("--strategies", default="lawnmower,greedy,auction")
     parser.add_argument("--minutes", type=float, default=60.0)
     parser.add_argument("--fleet", default="2,0,1", help="drones_eo,drones_thermal,usvs")
     return parser.parse_args(argv)

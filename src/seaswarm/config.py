@@ -167,6 +167,9 @@ class PlannerConfig(_Model):
     event_replan_cooldown_s: NonNegativeFloat
     recovery_update_s: PositiveFloat
     lawnmower_prior_mass: Annotated[float, Field(gt=0.0, lt=1.0)]
+    auction_tasks_per_vehicle: PositiveInt
+    auction_bundle_size: PositiveInt
+    reward_time_constant_s: PositiveFloat
 
 
 class DefaultConfig(_Model):
