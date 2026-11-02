@@ -29,11 +29,16 @@ python scripts/run_drift.py --scenario scenarios/calm_single.yaml --seed 1 --gif
 | Phase | Name | Status |
 | --- | --- | --- |
 | 1 | World and drift | done |
-| 2 | Probability map | in progress |
+| 2 | Probability map | in review |
 | 3 | Vehicles, safety and baseline search | not started |
 | 4 | Auction planner and evaluation | not started |
 | 5 | Operator agent and MCP server | not started |
 | 6 | Polish, publish and stretch | not started |
+
+![Probability map vs 5000 drift particles after 2 hours](media/belief_vs_particles.png)
+
+*The Bayesian probability map (left), predicted with the exact variance of the drift noise,
+against 5000 Monte Carlo particles of the drift model (right) after 2 hours.*
 
 Design notes, equations and parameter sources: [docs/design.md](docs/design.md).
 

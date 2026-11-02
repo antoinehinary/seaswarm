@@ -110,13 +110,132 @@ another, so strategies compared on the same seed face the same person trajectory
 | Wind from 270° | person moves east |
 | Same seed | bit-identical trajectories |
 
-## 3. Limitations
+## 3. Probability map (belief)
+
+### 3.1 State and prior
+
+`p[ny, nx]` holds the probability that the person is in each 100 m cell (row 0 at the south),
+`p_out` the probability that they are off the grid. Invariant: `p.sum() + p_out == 1` to 1e-9,
+kept by bookkeeping (mass that leaves the grid is added to `p_out`), never by renormalising.
+
+The prior is the Gaussian `N(LKP, sigma_lkp^2)` integrated exactly over each cell: the 2D
+Gaussian is separable, so a cell's mass is a product of two differences of normal CDFs. Predict
+steps then carry it from the fall to the start of the search.
+
+### 3.2 Motion model
+
+The map knows the forecast (wind, current, leeway coefficients), never the true person.
+
+- Mean drift: `v_bar = U_current(map mean) + (a_d |W10| + b_d) e_dw`. The crosswind mean is 0
+  because the side `s` is +1 or -1 with equal probability.
+- Spread: for a stationary velocity noise with std `sigma` and correlation time `tau`, the
+  displacement variance is exactly `V(t) = 2 sigma^2 tau (t - tau (1 - exp(-t/tau)))`. Each
+  predict step adds `V(t + dt) - V(t)` for every noise source, so the map's variance follows the
+  truth model at all times (ballistic early, diffusive late), not only for `t >> tau`.
+- Noise sources and their correlation times:
+
+| Source | Axis | Std | Correlation time |
+| --- | --- | --- | --- |
+| Leeway noise `eps_d` | downwind | 0.12 m/s | `tau` |
+| Crosswind side `s` times mean crosswind leeway | crosswind | `a_c |W10| + b_c` | `1 / (2 lam)` (telegraph process, `lam` = jibe rate, ~12 h) |
+| `s * eps_c` | crosswind | 0.094 m/s | `1 / (1/tau + 2 lam)` |
+| Gusts | both, scaled by `a_d`, `a_c` | `a sigma_gust` | `tau_gust` (crosswind: combined with `lam`) |
+| Current noise | both | `sigma_n` | `tau_n` |
+
+- The two crosswind lobes are replaced by one Gaussian of the same variance. Over the first
+  hours the lobes are narrower than the noise spread, so the approximation is good (see 3.4).
+
+### 3.3 Predict step
+
+One convolution of the map with `N(d, S)`, `d = v_bar dt`, `S = covariance increment`, computed
+in Fourier space where the Gaussian has a closed form:
+
+```
+P'(k) = P(k) exp(-i k.d) exp(-k^T S k / 2)
+```
+
+- Exact for any sub-cell shift and any anisotropic, rotated or tiny covariance.
+- No numerical diffusion. The brief's `ndimage.shift(order=1)` adds `f (1 - f)` cells^2 of
+  variance per step for a fractional shift `f`, which the tests measure: 21 cells^2 after 100
+  steps of 0.3 cell, as large as the physical spread.
+- Zero padding (shift + 6 sigma) prevents wrap-around; mass in the padding goes to `p_out`.
+  Small negative values from ringing next to sharp features (after Bayes updates) are clipped
+  and the mass rescaled to its value before the step.
+- Cost: ~0.2 ms per step on 100 x 100, 0.65 ms for predict + update on 200 x 200.
+- The current is evaluated at the map's mean position. A semi-Lagrangian predict for spatially
+  varying currents (shear, gyre) is a stretch item.
+
+### 3.4 Validation against the truth drift model
+
+After 2 h, against Monte Carlo clouds of `seaswarm.world.drift`:
+
+| Scenario | Centroid error | Std (map / 5000 particles) | Hellinger, 5000 particles, 100 m / 400 m | Hellinger, 100 000 particles, 100 m |
+| --- | --- | --- | --- | --- |
+| calm_single | 0.10-0.14 cell | 558 x 492 m / 552-560 x 489-493 m | 0.18 / 0.05 | 0.049 |
+| windy_mixed | 0.05-0.11 cell | 671 x 731 m / 658-663 x 741-742 m | 0.23 / 0.08 | 0.074 |
+
+Two independent 5000-particle clouds of the same distribution are 0.25-0.29 apart at 100 m cells
+(sampling noise, `H^2 ~ K / 8N` for `K` occupied cells), so the map is closer to each cloud than
+another cloud is. The 0.15 acceptance threshold is therefore checked at 400 m tiles with 5000
+particles, and at 100 m cells with 100 000 particles (`bench`).
+
+## 4. Sensors and Bayes updates
+
+### 4.1 Detection model
+
+Lateral-range model, per look: `POD(r) = pod_max exp(-r^2 / (2 sigma_r^2))` for `r <= r_max`,
+else 0. **Illustrative values, not validated sweep widths.**
+
+| Sensor | r_max | sigma_r | pod_max day / night | Period |
+| --- | --- | --- | --- | --- |
+| Drone EO camera, 60 m, FOV 70° | 60 tan 35° = 42 m | 25 m | 0.6 / 0.1 | 2 s |
+| Drone thermal camera, 60 m, FOV 50° | 60 tan 25° = 28 m | 18 m | 0.7 / 0.8 | 2 s |
+| USV mast camera + lookout, 3 m | 150 m | 70 m | 0.5 / 0.2 | 5 s |
+
+Drone cameras: `r_max = h tan(FOV/2)` and `pod_max(h) = pod_max(60 m) exp(-(h - 60 m) / 100 m)`,
+clipped to [0, 1].
+
+Successive looks are treated as independent. This is optimistic: real misses are correlated
+(same sea state, same posture of the person), so the belief clears searched cells faster than it
+should.
+
+### 4.2 Cell-averaged POD
+
+The likelihood of "no detection" given the person is in cell `i` is the POD averaged over the
+cell, `POD_i = (1/A) ∫_cell POD(|x - s|) dx`, computed with a midpoint rule of spacing
+`r_max / 8`. Evaluating POD only at the cell centre fails when the footprint is smaller than a
+cell (42 m and 28 m cameras on 100 m cells). Check: the footprint integrates to the sensor's
+coverage area `pod_max 2 pi sigma_r^2 (1 - exp(-r_max^2 / (2 sigma_r^2)))` within 1.2 %.
+
+### 4.3 Bayes updates and probability of success
+
+No detection:
+
+```
+POS_k = sum_i p_i POD_i                       (probability that this look succeeds)
+p_i   <- p_i (1 - POD_i) / (1 - POS_k)
+p_out <- p_out / (1 - POS_k)                  (POD = 0 off the grid)
+POS_cum = 1 - prod_k (1 - POS_k)
+```
+
+Detection (v1, no false alarms): the belief is replaced by a Gaussian around the measured
+position (sigma 10 m for drones, 20 m for USVs). The truth side rolls each look as a Bernoulli
+trial with the POD at the true distance, using the `sensors` random stream.
+
+## 5. Limitations
 
 - Leeway coefficients are fleet-average regressions for one object class; real persons differ.
 - Fields are synthetic and spatially simple; no tides, Stokes drift or coastline.
 - The crosswind term is symmetric (true for PIW-1, not for every object class).
+- The belief approximates the two crosswind lobes by one Gaussian and uses the current at its
+  mean position.
+- Looks are independent and sensors raise no false alarms.
 
 ## References
+
+- L. D. Stone, C. M. Keller, T. M. Kratzke, J. P. Strumpfer, "Search for the Wreckage of Air
+  France Flight AF 447", Statistical Science 29(1), 2014 (arXiv:1405.4720).
+- L. D. Stone, J. O. Royset, A. R. Washburn, "Optimal Search for Moving Targets", Springer, 2016.
 
 - A. A. Allen, J. V. Plourde, "Review of Leeway: Field Experiments and Implementation",
   US Coast Guard report CG-D-08-99, 1999.
