@@ -81,6 +81,33 @@ class BeliefConfig(_Model):
     """Probability-map parameters (default.yaml `belief`)."""
 
     predict_period_s: PositiveFloat
+    pod_points_per_r_max: PositiveInt
+
+
+class SensorConfig(_Model):
+    """Lateral-range sensor (default.yaml `sensors`).
+
+    Downward-looking drone cameras set `fov_deg` (their range limit grows with altitude);
+    surface sensors set a fixed `r_max_m`. Exactly one of the two must be given.
+    """
+
+    sigma_r_m: PositiveFloat
+    pod_max_day: Probability
+    pod_max_night: Probability
+    period_s: PositiveFloat
+    fov_deg: Annotated[float, Field(gt=0.0, lt=180.0)] | None = None
+    altitude_ref_m: PositiveFloat | None = None
+    altitude_scale_m: PositiveFloat | None = None
+    r_max_m: PositiveFloat | None = None
+
+    @model_validator(mode="after")
+    def _one_range_model(self) -> Self:
+        camera = (self.fov_deg, self.altitude_ref_m, self.altitude_scale_m)
+        if self.r_max_m is None and None in camera:
+            raise ValueError("set r_max_m, or fov_deg + altitude_ref_m + altitude_scale_m")
+        if self.r_max_m is not None and any(v is not None for v in camera):
+            raise ValueError("set either r_max_m or the camera fields, not both")
+        return self
 
 
 class DefaultConfig(_Model):
@@ -89,6 +116,7 @@ class DefaultConfig(_Model):
     sim: SimConfig
     leeway_objects: dict[str, LeewayObjectConfig]
     belief: BeliefConfig
+    sensors: dict[str, SensorConfig]
 
 
 # --------------------------------------------------------------------------- scenario fields

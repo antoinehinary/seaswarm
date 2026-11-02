@@ -20,3 +20,31 @@ leeway_objects:
 
 belief:
   predict_period_s: 60.0          # probability-map predict step
+  pod_points_per_r_max: 8         # cell-averaged POD: midpoint-rule spacing = r_max / 8 (<= 1.2 % error)
+
+# Lateral-range detection model: POD(r) = pod_max * exp(-r^2 / (2 sigma_r^2)) for r <= r_max.
+# Illustrative values, not validated sweep widths. Drone cameras look down: r_max = h tan(FOV/2)
+# and pod_max(h) = pod_max(h_ref) * exp(-(h - h_ref) / altitude_scale_m), clipped to [0, 1].
+sensors:
+  drone_eo:
+    fov_deg: 70.0                 # r_max = 60 m * tan(35 deg) = 42 m at the reference altitude
+    altitude_ref_m: 60.0
+    altitude_scale_m: 100.0
+    sigma_r_m: 25.0
+    pod_max_day: 0.6
+    pod_max_night: 0.1
+    period_s: 2.0
+  drone_thermal:
+    fov_deg: 50.0                 # r_max = 60 m * tan(25 deg) = 28 m
+    altitude_ref_m: 60.0
+    altitude_scale_m: 100.0
+    sigma_r_m: 18.0
+    pod_max_day: 0.7
+    pod_max_night: 0.8
+    period_s: 2.0
+  usv_mast:                       # mast camera plus lookout, 3 m above the sea
+    r_max_m: 150.0
+    sigma_r_m: 70.0
+    pod_max_day: 0.5
+    pod_max_night: 0.2
+    period_s: 5.0

@@ -112,3 +112,18 @@ One entry per real decision: date, decision, why, alternatives considered.
   100 m cells, so the model error itself is well below 0.15.
 - **Alternatives:** 100 000 particles in the default suite (too slow for the 60 s budget);
   kernel-smoothing the particles (adds its own bias).
+
+## 2026-11-02 — Cell-averaged POD instead of POD at the cell centre
+
+- **Decision:** the belief update uses, for each cell, the POD averaged over the cell area
+  (midpoint rule with spacing r_max / 8), not the POD at the cell centre.
+- **Why:** the likelihood of "no detection" given the person is in a cell must average over where
+  in the cell they are. With 100 m cells and a 42 m (EO) or 28 m (thermal) camera footprint,
+  centre sampling gives 0 or full POD depending on whether the drone happens to pass within r_max
+  of a centre, so a drone flying between centres would clear nothing. The averaged footprint
+  integrates to the sensor's coverage area `pod_max 2 pi sigma^2 (1 - exp(-r_max^2 / 2 sigma^2))`
+  within 1.2 % for every sensor, at ~20 us per look. Spacing is tied to r_max, not to the cell,
+  because the hard cut-off at r_max limits the accuracy (a fixed 5 x 5 rule was off by 19 % for
+  the thermal camera).
+- **Alternatives:** POD at the cell centre (brief's first version); finer grid cells (cost grows
+  with the square of the resolution everywhere, not only under the sensors).
