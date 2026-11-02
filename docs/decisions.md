@@ -157,3 +157,15 @@ One entry per real decision: date, decision, why, alternatives considered.
   the base plus 1 km; being convex, checking the waypoints keeps every straight leg inside.
 - **Why:** commands carry only waypoints, so the guard is the one place that sees every plan.
 - **Alternatives:** have the planner report all paths to the guard (two sources of truth).
+
+## 2026-11-02 — Sweep width and POD of a tile sweep from classical search theory
+
+- **Decision:** each vehicle's effective sweep width W is computed numerically from its lateral
+  range curve (cumulative POD of the looks taken while passing at cruise speed); lawnmower track
+  spacing is `W (1 - overlap)`, i.e. `2 r_eff (1 - overlap)` with `r_eff = W / 2`; the POD of
+  one sweep of a tile is Koopman's random-search formula `1 - exp(-W L / A)`.
+- **Why:** gives every vehicle type a comparable, physically meaningful sweep rate (W v): EO drone
+  at 60 m ~46 m (2.5 km^2/h), USV ~239 m (3.4 km^2/h). The random-search formula is the
+  conservative textbook value for the expected POS gain used in the utility.
+- **Alternatives:** `r_eff = r_max` (ignores how many looks a point gets and the POD shape);
+  the definite-range law (optimistic).

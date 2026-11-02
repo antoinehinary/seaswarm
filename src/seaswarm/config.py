@@ -158,6 +158,15 @@ class SafetyConfig(_Model):
     base_zone_radius_m: NonNegativeFloat
 
 
+class PlannerConfig(_Model):
+    """Search planning parameters (default.yaml `planner`)."""
+
+    tile_size_m: PositiveFloat
+    track_overlap: Annotated[float, Field(ge=0.0, lt=1.0)]
+    replan_period_s: PositiveFloat
+    lawnmower_prior_mass: Annotated[float, Field(gt=0.0, lt=1.0)]
+
+
 class DefaultConfig(_Model):
     """Project-wide parameters (config/default.yaml)."""
 
@@ -167,6 +176,7 @@ class DefaultConfig(_Model):
     sensors: dict[str, SensorConfig]
     vehicles: VehiclesConfig
     safety: SafetyConfig
+    planner: PlannerConfig
 
 
 # --------------------------------------------------------------------------- scenario fields

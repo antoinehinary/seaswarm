@@ -93,3 +93,9 @@ safety:
   separation_horizon_s: 30.0      # predictive check of planned paths
   energy_horizon_s: 10.0          # force RTB if the reserve would be broken within this time
   base_zone_radius_m: 100.0       # deck operations: no separation rule near the base
+
+planner:
+  tile_size_m: 400.0              # 4 x 4 cells of 100 m
+  track_overlap: 0.1              # lawnmower track spacing = sweep width * (1 - overlap)
+  replan_period_s: 120.0
+  lawnmower_prior_mass: 0.95      # baseline covers the rectangle holding this much prior mass

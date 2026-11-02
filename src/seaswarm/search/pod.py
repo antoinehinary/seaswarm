@@ -55,3 +55,29 @@ class SensorModel:
         """Integral of POD over the plane, m^2: the expected area 'cleared' by one look."""
         s2 = self.sigma_r_m**2
         return float(self.pod_max * 2.0 * np.pi * s2 * -np.expm1(-(self.r_max_m**2) / (2.0 * s2)))
+
+
+def sweep_width_m(sensor: SensorModel, speed_mps: float, n_offsets: int = 200) -> float:
+    """Effective sweep width W of a vehicle passing in a straight line, metres.
+
+    A person at lateral offset x from the track is seen by the looks taken every `period_s` along
+    the track; their cumulative detection probability is p(x) = 1 - prod_k (1 - POD(r_k)). The
+    effective sweep width is W = integral of p(x) over all offsets: the width of a perfect sensor
+    that would detect as many people as this one (Koopman's definition).
+    """
+    step_m = speed_mps * sensor.period_s
+    n_looks = int(np.ceil(sensor.r_max_m / step_m))
+    along = step_m * np.arange(-n_looks, n_looks + 1)[None, :]
+    offsets = np.linspace(0.0, sensor.r_max_m, n_offsets)
+    # average over where the person sits between two looks (looks are phase-shifted by u)
+    phases = np.linspace(0.0, step_m, 8, endpoint=False)
+    p_miss = np.mean(
+        [np.prod(1.0 - sensor.pod(np.hypot(offsets[:, None], along + u)), axis=1) for u in phases],
+        axis=0,
+    )
+    return float(2.0 * np.trapezoid(1.0 - p_miss, offsets))
+
+
+def random_search_pod(sweep_width_m: float, track_length_m: float, area_m2: float) -> float:
+    """Koopman's random-search formula: POD = 1 - exp(-W L / A) for one sweep of an area."""
+    return float(-np.expm1(-sweep_width_m * track_length_m / area_m2))
