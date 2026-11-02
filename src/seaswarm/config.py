@@ -110,6 +110,41 @@ class SensorConfig(_Model):
         return self
 
 
+class VehicleTypeConfig(_Model):
+    """Kinematics, energy and operations of one vehicle type (default.yaml `vehicles`)."""
+
+    cruise_speed_mps: PositiveFloat
+    max_speed_mps: PositiveFloat
+    max_turn_rate_deg_s: PositiveFloat
+    max_accel_mps2: PositiveFloat
+    heading_gain_per_s: PositiveFloat
+    speed_time_constant_s: PositiveFloat
+    waypoint_radius_m: PositiveFloat
+    endurance_s: PositiveFloat
+    idle_power_fraction: Probability
+    altitude_layers_m: list[NonNegativeFloat]
+    rtb_margin: NonNegativeFloat
+    rtb_fixed_s: NonNegativeFloat
+    turnaround_s: NonNegativeFloat
+    detection_sigma_m: PositiveFloat
+    recovery_radius_m: PositiveFloat | None = None
+
+    @model_validator(mode="after")
+    def _speeds(self) -> Self:
+        if self.cruise_speed_mps > self.max_speed_mps:
+            raise ValueError("cruise_speed_mps exceeds max_speed_mps")
+        if not self.altitude_layers_m:
+            raise ValueError("altitude_layers_m needs at least one layer")
+        return self
+
+
+class VehiclesConfig(_Model):
+    """The two vehicle types of the fleet."""
+
+    drone: VehicleTypeConfig
+    usv: VehicleTypeConfig
+
+
 class DefaultConfig(_Model):
     """Project-wide parameters (config/default.yaml)."""
 
@@ -117,6 +152,7 @@ class DefaultConfig(_Model):
     leeway_objects: dict[str, LeewayObjectConfig]
     belief: BeliefConfig
     sensors: dict[str, SensorConfig]
+    vehicles: VehiclesConfig
 
 
 # --------------------------------------------------------------------------- scenario fields

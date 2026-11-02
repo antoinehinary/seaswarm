@@ -127,3 +127,12 @@ One entry per real decision: date, decision, why, alternatives considered.
   the thermal camera).
 - **Alternatives:** POD at the cell centre (brief's first version); finer grid cells (cost grows
   with the square of the resolution everywhere, not only under the sensors).
+
+## 2026-11-02 — Drone energy drain keeps a hover term
+
+- **Decision:** drain rate `(idle + (1 - idle) (v / v_cruise)^2) / endurance` with
+  `idle = 0.7` for drones and `0.2` for USVs, instead of `(v / v_cruise)^2 / endurance`.
+- **Why:** with the pure quadratic law a hovering multirotor uses no energy, so a drone told to
+  hold would never need to return to base. A multirotor's hover power is close to its cruise
+  power. The rate still equals `1 / endurance` at cruise, as in the brief.
+- **Alternatives:** the brief's quadratic law (hover is free).

@@ -48,3 +48,37 @@ sensors:
     pod_max_day: 0.5
     pod_max_night: 0.2
     period_s: 5.0
+
+# Vehicle types. Illustrative values for a small fixed-wing-speed multirotor and a small USV.
+vehicles:
+  drone:
+    cruise_speed_mps: 15.0
+    max_speed_mps: 20.0
+    max_turn_rate_deg_s: 60.0
+    max_accel_mps2: 4.0
+    heading_gain_per_s: 2.0       # k_psi: yaw-rate command per rad of heading error
+    speed_time_constant_s: 1.0    # tau_v
+    waypoint_radius_m: 15.0       # a waypoint counts as reached inside this radius
+    endurance_s: 1500.0           # 25 min at cruise
+    idle_power_fraction: 0.7      # multirotor: hovering costs 70 % of cruise power
+    altitude_layers_m: [40.0, 60.0, 80.0]
+    rtb_margin: 0.2
+    rtb_fixed_s: 120.0            # landing, approach
+    turnaround_s: 300.0           # battery swap at base
+    detection_sigma_m: 10.0       # position error of a detection
+  usv:
+    cruise_speed_mps: 4.0
+    max_speed_mps: 6.0
+    max_turn_rate_deg_s: 10.0
+    max_accel_mps2: 0.5
+    heading_gain_per_s: 0.5
+    speed_time_constant_s: 5.0
+    waypoint_radius_m: 30.0
+    endurance_s: 28800.0          # 8 h
+    idle_power_fraction: 0.2
+    altitude_layers_m: [0.0]
+    rtb_margin: 0.2
+    rtb_fixed_s: 900.0
+    turnaround_s: 1800.0          # refuel
+    detection_sigma_m: 20.0
+    recovery_radius_m: 25.0       # person recovered when a USV is this close
