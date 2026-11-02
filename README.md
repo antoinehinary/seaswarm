@@ -28,7 +28,7 @@ python scripts/run_drift.py --scenario scenarios/calm_single.yaml --seed 1 --gif
 
 | Phase | Name | Status |
 | --- | --- | --- |
-| 1 | World and drift | in review |
+| 1 | World and drift | done |
 | 2 | Probability map | not started |
 | 3 | Vehicles, safety and baseline search | not started |
 | 4 | Auction planner and evaluation | not started |
