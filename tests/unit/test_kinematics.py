@@ -26,6 +26,16 @@ def test_turn_rate_and_acceleration_limits_hold(limits: KinematicLimits) -> None
     assert speeds.max() == pytest.approx(limits.max_speed_mps)
 
 
+@pytest.mark.parametrize("limits", [DRONE, USV], ids=["drone", "usv"])
+def test_small_heading_error_decays_without_oscillating(limits: KinematicLimits) -> None:
+    # regression: forward Euler with k dt = 2 flipped the sign of the error every step forever
+    poses = _run(Pose(0.0, 0.0, 0.0, 10.0), np.radians(10.0), 10.0, limits, 30)
+    errors = np.radians(10.0) - np.array([p.yaw_rad for p in poses])
+    assert np.all(errors >= -1e-12)  # never overshoots
+    assert np.all(np.diff(errors) <= 1e-12)  # monotone
+    assert errors[-1] < np.radians(10.0) * np.exp(-limits.heading_gain_per_s * 30) + 1e-9
+
+
 def test_heading_converges_to_the_command() -> None:
     pose = _run(Pose(0.0, 0.0, 0.0, 15.0), np.radians(120.0), 15.0, DRONE, 20)[-1]
     assert pose.yaw_rad == pytest.approx(np.radians(120.0), abs=1e-3)

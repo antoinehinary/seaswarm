@@ -1,8 +1,15 @@
 """Unicycle kinematics with heading-rate, speed and acceleration limits.
 
+Continuous model:
+
     psi_dot = clip(k_psi * wrap(psi_cmd - psi), -r_max, r_max)
     v_dot   = clip((v_cmd - v) / tau_v, -a_max, a_max),   0 <= v <= v_max
     x_dot   = v cos(psi) + u_drift,   y_dot = v sin(psi) + v_drift
+
+The two first-order loops are discretised exactly: over a step dt the heading error shrinks by
+exp(-k_psi dt) and the speed error by exp(-dt / tau_v), then the rate and acceleration limits
+apply. A forward-Euler step would give err[n+1] = (1 - k dt) err[n], which oscillates for
+k dt > 1 and never settles at k dt = 2 (the drone's k = 2 /s at dt = 1 s did exactly that).
 
 `drift` is the surface current for a USV and zero for a drone (wind on drones is ignored in v1).
 Heading and speed are updated first, then the position (semi-implicit Euler).
@@ -63,13 +70,14 @@ def step_unicycle(
     drift_mps: tuple[float, float] = (0.0, 0.0),
 ) -> Pose:
     """Advance a pose by dt_s seconds towards a commanded heading and speed."""
+    yaw_error = wrap_angle_rad(yaw_cmd_rad - pose.yaw_rad)
     yaw_rate = np.clip(
-        limits.heading_gain_per_s * wrap_angle_rad(yaw_cmd_rad - pose.yaw_rad),
+        yaw_error * -np.expm1(-limits.heading_gain_per_s * dt_s) / dt_s,
         -limits.max_turn_rate_rad_s,
         limits.max_turn_rate_rad_s,
     )
     accel = np.clip(
-        (speed_cmd_mps - pose.speed_mps) / limits.speed_time_constant_s,
+        (speed_cmd_mps - pose.speed_mps) * -np.expm1(-dt_s / limits.speed_time_constant_s) / dt_s,
         -limits.max_accel_mps2,
         limits.max_accel_mps2,
     )

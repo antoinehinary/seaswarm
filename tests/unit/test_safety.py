@@ -159,3 +159,37 @@ def test_position_along_a_polyline() -> None:
     path = ((10.0, 0.0), (10.0, 10.0))
     assert position_along((0.0, 0.0), path, 15.0) == pytest.approx((10.0, 5.0))
     assert position_along((0.0, 0.0), path, 99.0) == pytest.approx((10.0, 10.0))
+
+
+def test_watch_holds_a_vehicle_before_paths_accepted_earlier_converge() -> None:
+    sim, guard = _world(drones=4)
+    # drone_1 and drone_4 share a layer; their paths cross at the origin about 66 s from now,
+    # beyond the 30 s horizon of the command-time check, so both commands are accepted
+    _place(sim, "drone_1", -1000.0, 0.0)
+    _place(sim, "drone_4", 0.0, -1000.0, yaw=np.pi / 2)
+    assert guard.submit(Proposal(GoTo("drone_1", 1000.0, 0.0, 15.0)), sim.t_s) is None
+    sim.step(1.0)
+    assert guard.submit(Proposal(GoTo("drone_4", 0.0, 1000.0, 15.0)), sim.t_s) is None
+    held = []
+    for _ in range(90):
+        sim.step(1.0)
+        guard.check_state(sim.t_s)
+        held += guard.held
+    assert held == ["drone_4"]  # commanded last, so it gives way
+    assert guard.violations.separation == 0
+
+
+def test_a_returning_vehicle_does_not_give_way_to_one_in_transit() -> None:
+    sim, guard = _world(drones=4)
+    _place(sim, "drone_1", 0.0, -3000.0, yaw=-np.pi / 2)
+    _place(sim, "drone_4", -500.0, -3500.0)
+    guard.submit(Proposal(ReturnToBase("drone_1")), sim.t_s)
+    sim.step(1.0)
+    guard.submit(Proposal(GoTo("drone_4", 500.0, -3500.0, 15.0)), sim.t_s)
+    held = []
+    for _ in range(60):
+        sim.step(1.0)
+        guard.check_state(sim.t_s)
+        held += guard.held
+    assert "drone_1" not in held
+    assert guard.violations.separation == 0

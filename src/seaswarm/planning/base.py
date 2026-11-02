@@ -141,6 +141,7 @@ class ReplanTrigger(StrEnum):
     PRIORITY = "priority"
     REFUSAL = "refusal"
     RETURNED = "returned"
+    CONFLICT = "conflict"  # the safety layer stopped a vehicle to keep separation
 
 
 class Planner(Protocol):

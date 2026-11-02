@@ -17,7 +17,7 @@ import numpy as np
 from seaswarm.config import DefaultConfig, VehicleTypeConfig
 from seaswarm.safety import rules
 from seaswarm.safety.refusal import Refusal, RefusalCode
-from seaswarm.safety.rules import XY, Geofence
+from seaswarm.safety.rules import XY, Geofence, Plan
 from seaswarm.vehicles.backend import (
     Command,
     FollowPath,
@@ -85,6 +85,8 @@ class SafetyGuard:
         self.decisions: list[DecisionRecord] = []
         self.violations = Violations()
         self._in_violation: set[tuple[str, ...]] = set()
+        self._commanded_at: dict[str, float] = {}
+        self.held: list[str] = []  # vehicles stopped by the last check_state to avoid a conflict
 
     # ------------------------------------------------------------------ queries
 
@@ -134,7 +136,7 @@ class SafetyGuard:
                     vid, proposal.tile_id, self._tile_owner, proposal.dispatch
                 ),
                 lambda: rules.check_separation(
-                    state, waypoints, speed, self._others(vid), self.base_xy_m, self.limits
+                    Plan(state, waypoints, speed), self._others(vid), self.base_xy_m, self.limits
                 ),
             ]
         )
@@ -142,22 +144,20 @@ class SafetyGuard:
             return self._record(t_s, command, refusal)
         return self._accept(t_s, proposal, state)
 
-    def _others(self, vehicle_id: str) -> list[tuple[VehicleState, tuple[XY, ...], float]]:
-        """(state, remaining planned waypoints, speed) of every other vehicle."""
-        others = []
-        for vid in self.vehicle_ids():
-            if vid == vehicle_id:
-                continue
-            state = self.get_state(vid)
-            waypoints, speed = self._planned.get(vid, ((), 0.0))
-            remaining = (
-                waypoints[len(waypoints) - state.waypoints_left :] if state.waypoints_left else ()
-            )
-            others.append((state, remaining, speed if remaining else 0.0))
-        return others
+    def _plan_of(self, state: VehicleState) -> Plan:
+        """Remaining planned waypoints of a vehicle (stationary if it has none)."""
+        waypoints, speed = self._planned.get(state.vehicle_id, ((), 0.0))
+        left = state.waypoints_left
+        remaining = waypoints[len(waypoints) - left :] if left else ()
+        return Plan(state, remaining, speed if remaining else 0.0)
+
+    def _others(self, vehicle_id: str) -> list[Plan]:
+        """Plans of every other vehicle."""
+        return [self._plan_of(self.get_state(v)) for v in self.vehicle_ids() if v != vehicle_id]
 
     def _accept(self, t_s: float, proposal: Proposal, state: VehicleState) -> None:
         command, vid = proposal.command, state.vehicle_id
+        self._commanded_at[vid] = t_s
         match command:
             case GoTo():
                 self._planned[vid] = (((command.x_m, command.y_m),), command.speed_mps)
@@ -218,11 +218,45 @@ class SafetyGuard:
             if self._reserve_at_risk(state):
                 self.submit(Proposal(ReturnToBase(state.vehicle_id)), t_s)
                 forced.append(state.vehicle_id)
+        self.held = self._resolve_conflicts(t_s)
         for a, b in itertools.combinations(states, 2):
             self._count(
                 ("separation", a.vehicle_id, b.vehicle_id), self._too_close(a, b), "separation"
             )
         return forced
+
+    def _resolve_conflicts(self, t_s: float) -> list[str]:
+        """Stop a vehicle whose path would break separation within the horizon.
+
+        The command-time check only covers the horizon after each command; paths accepted at
+        different times can still converge later. Every step, each constrained pair is projected
+        again; on a predicted conflict one moving vehicle holds (always allowed) and the planner
+        replans it. The one to give way is a vehicle in transit rather than one returning to base,
+        and among equals the one commanded last.
+        """
+        held: list[str] = []
+        plans = [self._plan_of(self.get_state(v)) for v in self.vehicle_ids()]
+        for a, b in itertools.combinations(plans, 2):
+            if a.state.vehicle_id in held or b.state.vehicle_id in held:
+                continue
+            required = rules.min_separation_m(a.state, b.state, self.limits)
+            moving = [p for p in (a, b) if p.speed_mps > 0.0]
+            if required is None or not moving:
+                continue
+            if rules.first_conflict(a, b, required, self.base_xy_m, self.limits) is None:
+                continue
+            yielder = min(
+                moving,
+                key=lambda p: (
+                    p.state.status is VehicleStatus.RTB,
+                    -self._commanded_at.get(p.state.vehicle_id, 0.0),
+                ),
+            )
+            vid = yielder.state.vehicle_id
+            self.submit(Proposal(Hold(vid)), t_s)
+            held.append(vid)
+            logger.info("safety: %s holds to keep separation", vid)
+        return held
 
     def _reserve_at_risk(self, state: VehicleState) -> bool:
         """True if the reserve would be broken within the energy horizon (status allowing RTB)."""

@@ -195,6 +195,9 @@ class SearchMission:
         for vid in self.guard.check_state(self.t_s):
             self._event("forced_rtb", vehicle_id=vid)
             self._pending.add(ReplanTrigger.LOW_ENERGY)
+        for vid in self.guard.held:
+            self._event("conflict_hold", vehicle_id=vid)
+            self._pending.add(ReplanTrigger.CONFLICT)
         self._watch_status()
 
         if self.state is MissionState.SEARCHING:

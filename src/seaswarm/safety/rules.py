@@ -142,40 +142,54 @@ def min_separation_m(a: VehicleState, b: VehicleState, limits: SafetyConfig) -> 
     return limits.separation_usv_m
 
 
-def check_separation(
-    state: VehicleState,
-    waypoints: Sequence[XY],
-    speed_mps: float,
-    others: Sequence[tuple[VehicleState, Sequence[XY], float]],
-    base_xy_m: XY,
-    limits: SafetyConfig,
-) -> Refusal | None:
-    """Predictive check: project every path at constant speed over the horizon, 1 s steps.
+@dataclass(frozen=True)
+class Plan:
+    """Where a vehicle is and where it is going: remaining waypoints at constant speed."""
 
-    `others` holds (state, planned waypoints, speed) of the other vehicles. Pairs where either
-    vehicle is inside the base zone are exempt (deck operations).
+    state: VehicleState
+    waypoints: Sequence[XY]
+    speed_mps: float
+
+
+def first_conflict(
+    a: Plan, b: Plan, required_m: float, base_xy_m: XY, limits: SafetyConfig
+) -> tuple[float, float] | None:
+    """First (time s, distance m) within the horizon at which two plans come closer than required.
+
+    Both plans are projected along their waypoints at constant speed, in 1 s steps (straight legs,
+    turns not modelled). Moments when either vehicle is inside the base zone are exempt (deck
+    operations).
     """
-    start = (state.x_m, state.y_m)
-    for other, other_path, other_speed in others:
-        required = min_separation_m(state, other, limits)
+    for t in np.arange(0.0, limits.separation_horizon_s + 1e-9, 1.0):
+        p = position_along((a.state.x_m, a.state.y_m), a.waypoints, a.speed_mps * t)
+        q = position_along((b.state.x_m, b.state.y_m), b.waypoints, b.speed_mps * t)
+        near_base = min(np.hypot(*np.subtract(p, base_xy_m)), np.hypot(*np.subtract(q, base_xy_m)))
+        if near_base < limits.base_zone_radius_m:
+            continue
+        distance = float(np.hypot(*np.subtract(p, q)))
+        if distance < required_m:
+            return float(t), distance
+    return None
+
+
+def check_separation(
+    plan: Plan, others: Sequence[Plan], base_xy_m: XY, limits: SafetyConfig
+) -> Refusal | None:
+    """Refuse a plan that would bring the vehicle too close to another one within the horizon."""
+    for other in others:
+        required = min_separation_m(plan.state, other.state, limits)
         if required is None:
             continue
-        for t in np.arange(0.0, limits.separation_horizon_s + 1e-9, 1.0):
-            p = position_along(start, waypoints, speed_mps * t)
-            q = position_along((other.x_m, other.y_m), other_path, other_speed * t)
-            near_base = min(
-                np.hypot(*np.subtract(p, base_xy_m)), np.hypot(*np.subtract(q, base_xy_m))
+        conflict = first_conflict(plan, other, required, base_xy_m, limits)
+        if conflict is not None:
+            t, distance = conflict
+            return Refusal(
+                RefusalCode.SEPARATION,
+                f"{plan.state.vehicle_id} would come within {distance:.0f} m of "
+                f"{other.state.vehicle_id} in {t:.0f} s; "
+                f"the minimum separation is {required:.0f} m",
+                plan.state.vehicle_id,
             )
-            if near_base < limits.base_zone_radius_m:
-                continue
-            distance = float(np.hypot(*np.subtract(p, q)))
-            if distance < required:
-                return Refusal(
-                    RefusalCode.SEPARATION,
-                    f"{state.vehicle_id} would come within {distance:.0f} m of {other.vehicle_id} "
-                    f"in {t:.0f} s; the minimum separation is {required:.0f} m",
-                    state.vehicle_id,
-                )
     return None
 
 

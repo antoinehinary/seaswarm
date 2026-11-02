@@ -227,3 +227,27 @@ crosswind lobes, current at the map mean, predict up to 60 s behind the looks).
 - **Why:** a refused proposal retried unchanged is refused again; excluding it lets the replan be
   immediate without thrashing. Same rule the operator agent follows in Phase 5.
 - **Alternatives:** a cooldown on every event trigger (misses the one-step requirement).
+
+## 2026-11-02 — Exact discretisation of the heading and speed loops (bug fix)
+
+- **Decision:** the unicycle's heading and speed first-order loops shrink their error by
+  `exp(-k dt)` per step (then rate/acceleration limits), instead of forward Euler.
+- **Why:** with forward Euler, `err[n+1] = (1 - k dt) err[n]`; the drone's `k = 2 /s` at
+  `dt = 1 s` gives `-err`: the heading flipped between two values forever (seen as a +-25 deg
+  wobble in the 4-drone evaluation). The wobble made straight-line conflict predictions wrong and
+  caused real separation violations. Phase 3's test missed it because a large turn is rate-limited
+  and lands exactly on target; a small-error regression test now checks monotone decay.
+- **Alternatives:** lower gains so that `k dt < 1` (stable, but still dt-dependent).
+
+## 2026-11-02 — Per-step predictive conflict watch in the safety guard
+
+- **Decision:** every step the guard re-projects each constrained pair's remaining planned paths
+  over the 30 s horizon; on a predicted conflict one moving vehicle holds (a vehicle in transit
+  rather than one returning to base; among equals the one commanded last) and the mission
+  replans it (`conflict` trigger).
+- **Why:** the command-time check only covers 30 s after each command; paths accepted at
+  different times can converge later (two USVs turning on a shared tile edge, a drone launching
+  as another returns). Before the watch, 4-drone and 2-USV fleets had separation violations;
+  with the watch and the heading fix, 120 runs across all fleets and strategies had none.
+- **Alternatives:** longer command-time horizon (still blind to later convergence), reactive
+  avoidance manoeuvres (more realistic, harder to explain and to test).
