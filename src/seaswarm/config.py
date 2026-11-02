@@ -123,6 +123,8 @@ class VehicleTypeConfig(_Model):
     endurance_s: PositiveFloat
     idle_power_fraction: Probability
     altitude_layers_m: list[NonNegativeFloat]
+    search_altitude_m: NonNegativeFloat
+    sensor: str
     rtb_margin: NonNegativeFloat
     rtb_fixed_s: NonNegativeFloat
     turnaround_s: NonNegativeFloat

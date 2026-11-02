@@ -116,3 +116,7 @@ class VehicleBackend(Protocol):
     def step(self, dt_s: float) -> list[SensorReport]:
         """Advance all vehicles by dt_s seconds; return the sensor looks taken meanwhile."""
         ...
+
+    def person_recovered(self) -> bool:
+        """True once a vehicle has the person aboard (reported by the crew or the recovery USV)."""
+        ...

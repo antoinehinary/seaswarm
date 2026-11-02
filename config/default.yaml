@@ -62,6 +62,8 @@ vehicles:
     endurance_s: 1500.0           # 25 min at cruise
     idle_power_fraction: 0.7      # multirotor: hovering costs 70 % of cruise power
     altitude_layers_m: [40.0, 60.0, 80.0]
+    search_altitude_m: 60.0
+    sensor: drone_eo              # default sensor; drones_thermal in a scenario use drone_thermal
     rtb_margin: 0.2
     rtb_fixed_s: 120.0            # landing, approach
     turnaround_s: 300.0           # battery swap at base
@@ -77,6 +79,8 @@ vehicles:
     endurance_s: 28800.0          # 8 h
     idle_power_fraction: 0.2
     altitude_layers_m: [0.0]
+    search_altitude_m: 0.0
+    sensor: usv_mast
     rtb_margin: 0.2
     rtb_fixed_s: 900.0
     turnaround_s: 1800.0          # refuel
