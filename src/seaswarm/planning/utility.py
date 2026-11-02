@@ -17,11 +17,33 @@ from numpy.typing import NDArray
 
 from seaswarm.planning.base import MissionView, VehicleCapability
 from seaswarm.planning.tiles import Rect, lawnmower_length_m
+from seaswarm.safety.rules import XY
 from seaswarm.search.pod import random_search_pod
 from seaswarm.vehicles.backend import VehicleState
 from seaswarm.vehicles.energy import drain_rate_per_s, rtb_energy_frac
 
 Array = NDArray[np.float64]
+
+
+def affordable_prefix(
+    state: VehicleState, cap: VehicleCapability, path: tuple[XY, ...], base_xy_m: XY
+) -> tuple[XY, ...]:
+    """Longest prefix of `path` the vehicle can fly at cruise and still return with the reserve.
+
+    Same rule as the safety layer's energy check, so an affordable prefix is never refused for
+    energy. Returns an empty tuple if not even the first waypoint is affordable.
+    """
+    rate = drain_rate_per_s(cap.cruise_speed_mps, cap.config)
+    energy = state.energy_frac
+    position = (state.x_m, state.y_m)
+    for i, waypoint in enumerate(path):
+        leg_m = float(np.hypot(waypoint[0] - position[0], waypoint[1] - position[1]))
+        energy -= rate * leg_m / cap.cruise_speed_mps
+        home_m = float(np.hypot(waypoint[0] - base_xy_m[0], waypoint[1] - base_xy_m[1]))
+        if energy < rtb_energy_frac(home_m, cap.config):
+            return path[:i]
+        position = waypoint
+    return path
 
 
 @dataclass(frozen=True)

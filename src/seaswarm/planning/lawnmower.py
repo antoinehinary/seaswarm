@@ -3,8 +3,9 @@
 At the first plan, the rectangle holding `prior_mass` of the belief is split into north-south
 strips, one per vehicle, with widths proportional to each vehicle's sweep rate (W * v). Each
 vehicle mows its strip with north-south tracks. Whenever a vehicle is idle (start, back from a
-battery swap) it gets the rest of its strip, shifted by the forecast mean drift since the start.
-When a strip is finished it starts again.
+battery swap) it gets the next sortie of its strip: the longest part it can fly and still return
+with the energy reserve, shifted by the forecast mean drift since the start. When a strip is
+finished it starts again.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import numpy as np
 
 from seaswarm.planning.base import Assignment, MissionView, OperatorPrefs, SearchTask
 from seaswarm.planning.tiles import Rect, lawnmower
+from seaswarm.planning.utility import affordable_prefix
 from seaswarm.safety.rules import XY
 from seaswarm.search.probability_map import ProbabilityMap
 from seaswarm.vehicles.backend import VehicleState, VehicleStatus
@@ -48,6 +50,11 @@ class LawnmowerPlanner:
         self._done: dict[str, int] = {}  # waypoints of the pattern already flown
         self._issued: dict[str, tuple[int, int]] = {}  # (first index, count) of the last issue
 
+    @property
+    def patterns(self) -> dict[str, tuple[XY, ...]]:
+        """Full strip pattern of every vehicle, as built at the first plan (before drift)."""
+        return dict(self._patterns)
+
     def plan(
         self,
         view: MissionView,
@@ -77,8 +84,11 @@ class LawnmowerPlanner:
             pattern = self._patterns[vid]
             start = self._done.get(vid, 0) % len(pattern)
             rest = tuple((x + dx, y + dy) for x, y in pattern[start:])
-            self._issued[vid] = (start, len(rest))
-            assignments[vid] = Assignment(vid, (SearchTask(None, rest, 0.0, view.t_s),))
+            sortie = affordable_prefix(state, view.capabilities[vid], rest, view.base_xy_m)
+            if not sortie:
+                continue
+            self._issued[vid] = (start, len(sortie))
+            assignments[vid] = Assignment(vid, (SearchTask(None, sortie, 0.0, view.t_s),))
         return assignments
 
     def _build(self, view: MissionView, pmap: ProbabilityMap) -> None:

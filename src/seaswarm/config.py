@@ -164,6 +164,8 @@ class PlannerConfig(_Model):
     tile_size_m: PositiveFloat
     track_overlap: Annotated[float, Field(ge=0.0, lt=1.0)]
     replan_period_s: PositiveFloat
+    event_replan_cooldown_s: NonNegativeFloat
+    recovery_update_s: PositiveFloat
     lawnmower_prior_mass: Annotated[float, Field(gt=0.0, lt=1.0)]
 
 

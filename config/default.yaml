@@ -98,4 +98,6 @@ planner:
   tile_size_m: 400.0              # 4 x 4 cells of 100 m
   track_overlap: 0.1              # lawnmower track spacing = sweep width * (1 - overlap)
   replan_period_s: 120.0
+  event_replan_cooldown_s: 10.0   # event-triggered replans (idle, refusal...) at most this often
+  recovery_update_s: 30.0         # after a detection: re-aim the recovery USV this often
   lawnmower_prior_mass: 0.95      # baseline covers the rectangle holding this much prior mass

@@ -153,21 +153,21 @@ def test_lawnmower_strips_are_proportional_to_sweep_rate_and_resume() -> None:
     vehicles = [_state(v, *BASE) for v in ("drone_1", "drone_2", "usv_1")]
     plan = planner.plan(_view(900.0), _blob(0.0, 0.0), vehicles, OperatorPrefs())
     widths = {}
-    for vid, a in plan.items():
-        xs = [x for x, _ in a.tasks[0].waypoints]
+    for vid, pattern in planner.patterns.items():
+        xs = [x for x, _ in pattern]
         widths[vid] = max(xs) - min(xs) + CAPS[vid].track_spacing_m
     rates = {v: CAPS[v].sweep_rate_m2_s for v in CAPS}
     assert widths["usv_1"] / widths["drone_1"] == pytest.approx(
         rates["usv_1"] / rates["drone_1"], rel=0.25
     )
-    # drone_1 flew 10 waypoints of its pattern, then went home and came back
+    # a drone sortie is only what its battery allows, the USV takes its whole strip
+    assert len(plan["drone_1"].tasks[0].waypoints) < len(planner.patterns["drone_1"])
+    assert len(plan["usv_1"].tasks[0].waypoints) == len(planner.patterns["usv_1"])
+    # drone_1 flew 10 waypoints of its sortie, then went home and came back
     n = len(plan["drone_1"].tasks[0].waypoints)
     flying = _state("drone_1", 0.0, 0.0, status=VehicleStatus.TRANSIT, left=n - 10)
     planner.plan(_view(1000.0), _blob(0.0, 0.0), [flying], OperatorPrefs())
     back = planner.plan(_view(2000.0), _blob(0.0, 0.0), [_state("drone_1", *BASE)], OperatorPrefs())
-    assert len(back["drone_1"].tasks[0].waypoints) == n - 10
-    # resumed waypoints are shifted by the forecast drift since the start
-    dx = 0.3 * (2000.0 - 900.0)
-    assert back["drone_1"].tasks[0].waypoints[0][0] == pytest.approx(
-        plan["drone_1"].tasks[0].waypoints[10][0] + dx
-    )
+    dx, dy = 0.3 * (2000.0 - 900.0), 0.1 * (2000.0 - 900.0)  # forecast drift since the start
+    x10, y10 = planner.patterns["drone_1"][10]
+    assert back["drone_1"].tasks[0].waypoints[0] == pytest.approx((x10 + dx, y10 + dy))

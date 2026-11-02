@@ -8,7 +8,7 @@ import numpy as np
 
 from seaswarm.planning.base import Assignment, MissionView, OperatorPrefs, SearchTask
 from seaswarm.planning.tiles import TileGrid, lawnmower
-from seaswarm.planning.utility import tile_scores
+from seaswarm.planning.utility import affordable_prefix, tile_scores
 from seaswarm.search.probability_map import ProbabilityMap
 from seaswarm.vehicles.backend import VehicleState, VehicleStatus
 
@@ -38,20 +38,32 @@ class GreedyPlanner:
         values = self.tiles.values(pmap)
         centres = self.tiles.centres_m()
         weights = prefs.weights(*centres, view.t_s)
+        # tiles being searched stay claimed unless their own vehicle is re-planned onto another
         claimed = np.zeros(self.tiles.shape, dtype=bool)
+        for tile_id in view.current_tiles.values():
+            if tile_id is not None:
+                claimed[self._index(tile_id)] = True
         assignments = {}
         for state in sorted(vehicles, key=lambda s: s.vehicle_id):
             if state.status not in AVAILABLE:
                 continue
+            own = view.current_tiles.get(state.vehicle_id)
+            if own is not None:
+                claimed[self._index(own)] = False
             cap = view.capabilities[state.vehicle_id]
             scores = tile_scores(state, cap, values, weights, centres, self.tiles.size_m, view)
             utility = np.where(claimed, -np.inf, scores.utility)
             best = int(np.argmax(utility))
             if not np.isfinite(utility.flat[best]) or utility.flat[best] <= 0.0:
+                if own is not None:
+                    claimed[self._index(own)] = True
                 continue
             row, col = np.unravel_index(best, self.tiles.shape)
             claimed[row, col] = True
             path = lawnmower(self.tiles.rect(row, col), cap.track_spacing_m, (state.x_m, state.y_m))
+            path = affordable_prefix(state, cap, path, view.base_xy_m)
+            if not path:
+                continue
             task = SearchTask(
                 TileGrid.tile_id(row, col),
                 path,
@@ -60,3 +72,8 @@ class GreedyPlanner:
             )
             assignments[state.vehicle_id] = Assignment(state.vehicle_id, (task,))
         return assignments
+
+    @staticmethod
+    def _index(tile_id: str) -> tuple[int, int]:
+        _, row, col = tile_id.split("_")
+        return int(row), int(col)
