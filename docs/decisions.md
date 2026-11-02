@@ -69,3 +69,46 @@ One entry per real decision: date, decision, why, alternatives considered.
   makes the "no unknown keys" rule easy to audit.
 - **Alternatives:** schema in `eval/scenario.py` imported by the world modules (makes the
   simulator depend on the evaluation package).
+
+## 2026-11-02 — Belief spread follows the exact OU variance, D(t) instead of constant D
+
+- **Decision:** the predict step adds, per step, the difference of the exact cumulative
+  displacement variance `2 sigma^2 tau (t - tau (1 - exp(-t/tau)))` of every noise process
+  (leeway OU noise, crosswind side as a telegraph process, gusts, current noise).
+- **Why:** a constant `D = sigma^2 tau` is only valid for `t >> tau` (30 min); before that real
+  particles spread ballistically and a constant D makes the map too wide in the first hour,
+  exactly when the search matters most. The jibing crosswind side is a telegraph process with
+  autocorrelation `exp(-2 lam |lag|)`, so the same formula covers the two crosswind lobes.
+- **Alternatives:** constant D (brief's first version).
+
+## 2026-11-02 — Spectral predict step instead of `ndimage.shift` + `gaussian_filter`
+
+- **Decision:** one convolution with N(v_bar dt, S) per step, computed as a product in Fourier
+  space with zero padding (mass reaching the padding goes to `p_out`).
+- **Why:** linear-interpolation shifting adds `f (1 - f)` cells^2 of spurious variance per step
+  (measured in `test_linear_interpolation_shift_adds_numerical_diffusion`: 21 cells^2 after 100
+  steps of 0.3 cell, as large as the physical spread); and per-step physical variances (~0.05-0.3
+  cells^2) are too small for a sampled Gaussian kernel to represent. The Fourier form is exact for
+  any sub-cell shift and any anisotropic covariance, and costs ~0.2 ms on 100 x 100.
+- **Alternatives:** the brief's shift + filter (numerically diffusive); integer shifts with a
+  carried sub-cell remainder (no diffusion but up to half a cell of lag).
+
+## 2026-11-02 — Spatially varying currents in the belief predict moved to stretch
+
+- **Decision:** the belief uses the current at the map's mean position; the semi-Lagrangian
+  `map_coordinates` predict for shear and gyre currents is on the Phase 6 stretch menu.
+- **Why:** keeps Phase 2 within 16 h. For `windy_mixed` (0.02 m/s per km of shear) the
+  belief-vs-particles check still matches the spread within ~2 %.
+- **Alternatives:** implement it in Phase 2 (+1.5 h).
+
+## 2026-11-02 — Belief-vs-particles acceptance test measured at tile resolution
+
+- **Decision:** with 5000 particles the Hellinger criterion (< 0.15) is evaluated on 400 m tiles
+  (the planner's resolution), and the map must also be closer to the particles than a second
+  independent 5000-particle cloud is. A 100 000-particle check at 100 m cells is marked `bench`.
+- **Why:** at 100 m cells, 5000 particles cannot reach 0.15 whatever the model: two independent
+  clouds of the same distribution are 0.25-0.29 apart (sampling noise, H^2 ~ K / 8N for K
+  occupied cells). Against 100 000 particles the map is 0.05 (calm) and 0.07 (windy) away at
+  100 m cells, so the model error itself is well below 0.15.
+- **Alternatives:** 100 000 particles in the default suite (too slow for the 60 s budget);
+  kernel-smoothing the particles (adds its own bias).

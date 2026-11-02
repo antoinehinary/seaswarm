@@ -17,3 +17,6 @@ leeway_objects:
     crosswind_offset_mps: 0.0
     crosswind_sigma_mps: 0.094    # 9.4 cm/s
     jibe_probability_per_h: 0.04  # OpenDrift default, consistent with Allen (2005)
+
+belief:
+  predict_period_s: 60.0          # probability-map predict step

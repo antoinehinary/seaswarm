@@ -103,3 +103,26 @@ class ProbabilityMap:
             (float(xs[c]), float(ys[r]), float(self.p[r, c]))
             for r, c in zip(rows, cols, strict=True)
         ]
+
+    def coarsened(self, factor: int) -> ProbabilityMap:
+        """Map on a grid with cells `factor` times larger (sums blocks of factor x factor cells)."""
+        ny, nx = self.grid.shape
+        if ny % factor or nx % factor:
+            raise ValueError(
+                f"grid {self.grid.shape} is not divisible into {factor} x {factor} blocks"
+            )
+        g = self.grid
+        coarse = Grid(nx // factor, ny // factor, g.cell_size_m * factor, g.x_min_m, g.y_min_m)
+        p = self.p.reshape(ny // factor, factor, nx // factor, factor).sum(axis=(1, 3))
+        return ProbabilityMap(coarse, p, self.p_out)
+
+
+def hellinger(a: ProbabilityMap, b: ProbabilityMap) -> float:
+    """Hellinger distance between two maps on the same grid, off-grid bin included.
+
+    H = sqrt(1 - sum_i sqrt(a_i b_i)), between 0 (identical) and 1 (disjoint supports).
+    """
+    if a.grid != b.grid:
+        raise ValueError("maps are on different grids")
+    overlap = np.sqrt(a.p * b.p).sum() + np.sqrt(a.p_out * b.p_out)
+    return float(np.sqrt(max(0.0, 1.0 - overlap)))

@@ -77,11 +77,18 @@ class LeewayObjectConfig(_Model):
     jibe_probability_per_h: Probability
 
 
+class BeliefConfig(_Model):
+    """Probability-map parameters (default.yaml `belief`)."""
+
+    predict_period_s: PositiveFloat
+
+
 class DefaultConfig(_Model):
     """Project-wide parameters (config/default.yaml)."""
 
     sim: SimConfig
     leeway_objects: dict[str, LeewayObjectConfig]
+    belief: BeliefConfig
 
 
 # --------------------------------------------------------------------------- scenario fields
