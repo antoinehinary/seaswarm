@@ -123,7 +123,6 @@ class VehicleTypeConfig(_Model):
     endurance_s: PositiveFloat
     idle_power_fraction: Probability
     altitude_layers_m: list[NonNegativeFloat]
-    search_altitude_m: NonNegativeFloat
     sensor: str
     rtb_margin: NonNegativeFloat
     rtb_fixed_s: NonNegativeFloat
@@ -147,6 +146,18 @@ class VehiclesConfig(_Model):
     usv: VehicleTypeConfig
 
 
+class SafetyConfig(_Model):
+    """Safety limits (default.yaml `safety`)."""
+
+    geofence_margin_m: NonNegativeFloat
+    separation_drone_m: PositiveFloat
+    separation_usv_m: PositiveFloat
+    drone_over_usv_min_altitude_m: NonNegativeFloat
+    separation_horizon_s: PositiveFloat
+    energy_horizon_s: NonNegativeFloat
+    base_zone_radius_m: NonNegativeFloat
+
+
 class DefaultConfig(_Model):
     """Project-wide parameters (config/default.yaml)."""
 
@@ -155,6 +166,7 @@ class DefaultConfig(_Model):
     belief: BeliefConfig
     sensors: dict[str, SensorConfig]
     vehicles: VehiclesConfig
+    safety: SafetyConfig
 
 
 # --------------------------------------------------------------------------- scenario fields

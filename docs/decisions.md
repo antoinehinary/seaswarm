@@ -136,3 +136,24 @@ One entry per real decision: date, decision, why, alternatives considered.
   hold would never need to return to base. A multirotor's hover power is close to its cruise
   power. The rate still equals `1 / endurance` at cruise, as in the brief.
 - **Alternatives:** the brief's quadratic law (hover is free).
+
+## 2026-11-02 — Drones fly in altitude layers 60 / 80 / 40 m by index
+
+- **Decision:** drone i is assigned altitude layer i mod 3 in the order 60, 80, 40 m. Its sensor
+  footprint and peak POD follow from that altitude.
+- **Why:** all vehicles start together at the base. Two drones heading for neighbouring tiles
+  diverge too slowly to be 30 m apart when they leave the 100 m base zone (they need ~17° between
+  headings), so the predictive separation check refused simultaneous launches. Vertical layers
+  remove the horizontal constraint between drones in different layers, as in the brief's rule.
+- **Alternatives:** staggered launches (slower start), all drones at 60 m with a larger base zone
+  (hides real conflicts).
+
+## 2026-11-02 — Safety guard owns planned paths and tile ownership
+
+- **Decision:** the guard records every accepted command's path (for the 30 s predictive
+  separation check of others) and which vehicle searches which tile; a tile is held only while
+  its vehicle is in transit. Recalls (RTB, Hold) are never refused. Separation is not enforced
+  within 100 m of the base (deck operations). The geofence is the rectangle around the area and
+  the base plus 1 km; being convex, checking the waypoints keeps every straight leg inside.
+- **Why:** commands carry only waypoints, so the guard is the one place that sees every plan.
+- **Alternatives:** have the planner report all paths to the guard (two sources of truth).

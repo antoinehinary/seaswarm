@@ -61,8 +61,7 @@ vehicles:
     waypoint_radius_m: 15.0       # a waypoint counts as reached inside this radius
     endurance_s: 1500.0           # 25 min at cruise
     idle_power_fraction: 0.7      # multirotor: hovering costs 70 % of cruise power
-    altitude_layers_m: [40.0, 60.0, 80.0]
-    search_altitude_m: 60.0
+    altitude_layers_m: [60.0, 80.0, 40.0]  # drone i flies at layer i mod 3 (60 m first)
     sensor: drone_eo              # default sensor; drones_thermal in a scenario use drone_thermal
     rtb_margin: 0.2
     rtb_fixed_s: 120.0            # landing, approach
@@ -79,10 +78,18 @@ vehicles:
     endurance_s: 28800.0          # 8 h
     idle_power_fraction: 0.2
     altitude_layers_m: [0.0]
-    search_altitude_m: 0.0
     sensor: usv_mast
     rtb_margin: 0.2
     rtb_fixed_s: 900.0
     turnaround_s: 1800.0          # refuel
     detection_sigma_m: 20.0
     recovery_radius_m: 25.0       # person recovered when a USV is this close
+
+safety:
+  geofence_margin_m: 1000.0       # rectangle around the search area and the base, plus this margin
+  separation_drone_m: 30.0        # drones in the same altitude layer
+  separation_usv_m: 50.0
+  drone_over_usv_min_altitude_m: 20.0
+  separation_horizon_s: 30.0      # predictive check of planned paths
+  energy_horizon_s: 10.0          # force RTB if the reserve would be broken within this time
+  base_zone_radius_m: 100.0       # deck operations: no separation rule near the base

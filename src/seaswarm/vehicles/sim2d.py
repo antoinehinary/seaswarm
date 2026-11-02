@@ -33,20 +33,29 @@ from seaswarm.world.target import PersonInWater
 
 @dataclass(frozen=True)
 class VehicleSpec:
-    """Identity, type and sensor of one vehicle of the fleet."""
+    """Identity, type, sensor and altitude layer of one vehicle of the fleet."""
 
     vehicle_id: str
     vehicle_type: VehicleType
     sensor: str
+    altitude_m: float
 
 
 def fleet_specs(fleet: FleetConfig, defaults: DefaultConfig) -> list[VehicleSpec]:
-    """Vehicles of a scenario fleet: drone_1.. (EO first, then thermal), usv_1.."""
-    sensors = [defaults.vehicles.drone.sensor] * fleet.drones_eo
-    sensors += ["drone_thermal"] * fleet.drones_thermal
-    specs = [VehicleSpec(f"drone_{i + 1}", VehicleType.DRONE, s) for i, s in enumerate(sensors)]
+    """Vehicles of a scenario fleet: drone_1.. (EO first, then thermal), usv_1..
+
+    Drone i flies at altitude layer i mod n_layers, so drones launched together from the base
+    are vertically separated.
+    """
+    drone, usv = defaults.vehicles.drone, defaults.vehicles.usv
+    sensors = [drone.sensor] * fleet.drones_eo + ["drone_thermal"] * fleet.drones_thermal
+    layers = drone.altitude_layers_m
+    specs = [
+        VehicleSpec(f"drone_{i + 1}", VehicleType.DRONE, s, layers[i % len(layers)])
+        for i, s in enumerate(sensors)
+    ]
     specs += [
-        VehicleSpec(f"usv_{i + 1}", VehicleType.USV, defaults.vehicles.usv.sensor)
+        VehicleSpec(f"usv_{i + 1}", VehicleType.USV, usv.sensor, usv.altitude_layers_m[0])
         for i in range(fleet.usvs)
     ]
     return specs
@@ -68,7 +77,7 @@ class _Vehicle:
 
     @property
     def altitude_m(self) -> float:
-        return self.config.search_altitude_m
+        return self.spec.altitude_m
 
     def parked(self, base_xy_m: tuple[float, float]) -> bool:
         """Idle at the base: on deck or moored, using no energy and not searching."""
@@ -114,7 +123,7 @@ class Sim2DBackend:
         for spec in specs:
             cfg = getattr(defaults.vehicles, spec.vehicle_type.value)
             sensor = SensorModel.from_config(
-                defaults.sensors[spec.sensor], daylight, cfg.search_altitude_m
+                defaults.sensors[spec.sensor], daylight, spec.altitude_m
             )
             pose = Pose(base_xy_m[0], base_xy_m[1], np.pi / 2, 0.0)
             self._vehicles[spec.vehicle_id] = _Vehicle(

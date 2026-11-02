@@ -28,6 +28,7 @@ def test_fleet_ids_and_sensors() -> None:
     specs = fleet_specs(FleetConfig(drones_eo=1, drones_thermal=1, usvs=2), DEFAULTS)
     assert [s.vehicle_id for s in specs] == ["drone_1", "drone_2", "usv_1", "usv_2"]
     assert [s.sensor for s in specs] == ["drone_eo", "drone_thermal", "usv_mast", "usv_mast"]
+    assert [s.altitude_m for s in specs] == [60.0, 80.0, 0.0, 0.0]
 
 
 def test_fleet_starts_at_base_when_the_search_starts() -> None:
