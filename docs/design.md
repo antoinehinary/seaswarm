@@ -222,7 +222,70 @@ Detection (v1, no false alarms): the belief is replaced by a Gaussian around the
 position (sigma 10 m for drones, 20 m for USVs). The truth side rolls each look as a Bernoulli
 trial with the POD at the true distance, using the `sensors` random stream.
 
-## 5. Limitations
+## 5. Vehicles, safety and planning
+
+### 5.1 Vehicles
+
+Unicycle kinematics with heading-rate, speed and acceleration limits, integrated at 1 s; USVs are
+carried by the surface current, drones ignore wind (v1). Drones fly in altitude layers 60 / 80 /
+40 m by index, so drones launched together are vertically separated; footprint and peak POD follow
+from the altitude. Energy drains at `(idle + (1 - idle) (v / v_cruise)^2) / endurance` (equal to
+`1 / endurance` at cruise; `idle` = 0.7 for a multirotor, 0.2 for a USV). Vehicles idle at the base
+are parked: no drain, no looks. After a return to base: 300 s battery swap (drone) or 1800 s
+refuel (USV).
+
+| | Drone | USV |
+| --- | --- | --- |
+| Cruise / max speed | 15 / 20 m/s | 4 / 6 m/s |
+| Max turn rate | 60 deg/s | 10 deg/s |
+| Endurance at cruise | 1500 s | 28 800 s |
+| Reserve | `t_rtb (1 + 0.2) + 120 s` | `t_rtb (1 + 0.2) + 900 s` |
+
+### 5.2 Safety layer
+
+Every command goes through `SafetyGuard`, which refuses with a code and a one-sentence reason:
+
+| Rule | Code |
+| --- | --- |
+| Every waypoint inside the geofence (rectangle around area and base + 1 km; convex, so legs too) | `GEOFENCE` |
+| No predicted approach below 30 m (drones, same layer) / 50 m (USVs) within 30 s; not near base | `SEPARATION` |
+| Energy after the task still covers the return with the reserve | `ENERGY_RESERVE` |
+| One searcher per tile (dispatch to a detection exempt) | `TILE_OCCUPIED` |
+| Vehicle unknown, returning, in turnaround or stranded | `VEHICLE_UNAVAILABLE` |
+
+Recalls are never refused. Every step the guard forces a return to base if the reserve would be
+broken within 10 s, and counts actual violations (separation, geofence, stranded) per episode.
+
+### 5.3 Search theory used by the planners
+
+- **Effective sweep width** W (Koopman): integral over lateral offset of the cumulative detection
+  probability of the looks taken while passing at cruise speed. EO drone at 60 m: 46 m; thermal:
+  29 m; USV: 239 m. Sweep rate W v: 2.5 km^2/h (EO drone), 3.4 km^2/h (USV).
+- **Track spacing** `W (1 - 0.1)`.
+- **POD of one tile sweep**: random-search formula `1 - exp(-W L / A)`.
+- **Utility** `U = w_prio POD_sweep p(tile) / (t_travel + t_search)`, `-inf` if the energy reserve
+  would be broken. Sorties are cut to the longest affordable prefix of the pattern.
+
+### 5.4 Strategies
+
+- **Lawnmower** (baseline): the rectangle holding 95 % of the prior is split into north-south
+  strips proportional to each vehicle's sweep rate; each vehicle mows its strip in
+  energy-limited sorties, resuming where it stopped, shifted by the forecast drift. It ignores
+  the belief after the start.
+- **Greedy**: every replan, vehicles in id order take the feasible unclaimed tile of highest
+  utility (tiles being searched stay claimed).
+
+### 5.5 Mission loop and evaluation mode
+
+Each 1 s step: backend looks, Bayes updates per look, belief predict every 60 s, safety watch,
+replan on triggers (start, every 120 s, vehicle idle, low energy, refusal, return to service;
+event triggers at most every 10 s). After a detection the detecting drone holds over the belief
+mean, the nearest USV is dispatched until it is within 25 m of the person (recovery), and the
+other vehicles return. In `search_only` mode (evaluation) every look counts as unsuccessful and
+the run continues to its time limit, so POS_cum measures the planned search alone; it is then
+identical for every seed, which a test checks.
+
+## 6. Limitations
 
 - Leeway coefficients are fleet-average regressions for one object class; real persons differ.
 - Fields are synthetic and spatially simple; no tides, Stokes drift or coastline.
@@ -230,8 +293,14 @@ trial with the POD at the true distance, using the `sensors` random stream.
 - The belief approximates the two crosswind lobes by one Gaussian and uses the current at its
   mean position.
 - Looks are independent and sensors raise no false alarms.
+- Drones ignore wind; turning is not modelled in separation predictions (straight legs at
+  constant speed).
+- POS_cum is slightly optimistic against the truth (within 2 sigma over 100 seeds).
 
 ## References
+
+- B. O. Koopman, "Search and Screening: General Principles with Historical Applications",
+  Pergamon, 1980.
 
 - L. D. Stone, C. M. Keller, T. M. Kratzke, J. P. Strumpfer, "Search for the Wreckage of Air
   France Flight AF 447", Statistical Science 29(1), 2014 (arXiv:1405.4720).

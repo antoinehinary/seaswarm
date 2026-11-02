@@ -71,3 +71,20 @@ def test_periodic_replans_happen_while_searching() -> None:
 def test_unknown_strategy_is_rejected() -> None:
     with pytest.raises(ValueError, match="unknown strategy"):
         _mission(strategy="random")
+
+
+@pytest.mark.parametrize("strategy", ["lawnmower", "greedy"])
+def test_search_only_pos_does_not_depend_on_the_truth(strategy: str) -> None:
+    # Run-time check of the truth/belief separation: in search_only mode nothing about the true
+    # person may reach the belief or the plans, so POS_cum must be identical for every seed.
+    pos = []
+    for seed in (0, 1, 2):
+        scenario = load_scenario(SCENARIOS / "windy_mixed.yaml")
+        raw = scenario.model_dump()
+        raw["seed"] = seed
+        raw["limits"]["max_sim_time_s"] = 1200.0
+        mission = SearchMission(scenario.model_validate(raw), DEFAULTS, strategy, search_only=True)
+        mission.run()
+        pos.append(mission.success.pos_cum)
+    assert pos[0] > 0.0
+    assert pos == [pos[0]] * 3

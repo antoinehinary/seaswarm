@@ -169,3 +169,40 @@ One entry per real decision: date, decision, why, alternatives considered.
   conservative textbook value for the expected POS gain used in the utility.
 - **Alternatives:** `r_eff = r_max` (ignores how many looks a point gets and the POD shape);
   the definite-range law (optimistic).
+
+## 2026-11-02 — Strategy comparison uses a search-only mode
+
+- **Decision:** POS_cum and "detected by 60 min" are measured in `search_only` runs: detections
+  are recorded but do not end the search, every look updates the belief as unsuccessful, and
+  recovery does not stop the run. Safety criteria are checked on normal full runs.
+- **Why:** in a normal run the belief collapses at the first detection, so a strategy that finds
+  the person early would show a lower POS_cum. In search-only mode POS_cum is the success
+  probability of the search as planned, identical for every seed (a run-time check of the
+  truth/belief separation, now a test); the seeds only change where the person really is.
+- **Alternatives:** POS_cum frozen at the detection time (penalises early success).
+
+## 2026-11-02 — Phase 3 result: greedy vs lawnmower, fleet 2D+1U, seeds 0-19
+
+| Scenario | Strategy | Detected <= 60 min | POS_cum @ 30 min | POS_cum @ 60 min | Median detection |
+| --- | --- | --- | --- | --- | --- |
+| windy_mixed | lawnmower | 11/20 | — | 0.615 | 47.5 min |
+| windy_mixed | greedy | 16/20 | — | 0.775 | 30.2 min |
+| calm_single | lawnmower | 14/20 | 0.673 | 0.908 | 28.3 min |
+| calm_single | greedy | 20/20 | 0.715 | 0.906 | 16.4 min |
+
+All 80 full runs: 0 separation or geofence violations, 0 stranded vehicles, every run within its
+step limit.
+
+**Why greedy does not beat lawnmower on POS_cum at 60 min in calm_single.** With light wind the
+belief stays compact (about 1 km across), and by 60 min both strategies have swept nearly all of
+it: POS_cum saturates near 0.91 for both. Greedy's advantage is *when* probability is cleared,
+not how much by a late deadline: it visits the densest tiles first (0.715 vs 0.673 at 30 min),
+which is what matters for a person in cold water, and it detects in every seed by 60 min (median
+16 min vs 28 min). A fixed-horizon POS_cum hides this; Phase 4 reports the whole POS(t) curve and
+the fraction found vs time instead. In windy_mixed the belief spreads faster than the fleet can
+sweep it, and greedy's focus pays off on both metrics.
+
+**Calibration.** Over 100 seeds per case (60 min, search-only), the observed detection fraction
+is within 2 sigma of the model's POS_cum in all four cases (-1.7, +0.8, -1.3, -1.6 sigma). The
+slight negative tendency is consistent with the belief's approximations (one Gaussian for the two
+crosswind lobes, current at the map mean, predict up to 60 s behind the looks).

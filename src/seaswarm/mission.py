@@ -86,8 +86,20 @@ class MissionEvent:
 class SearchMission:
     """One search scenario run with one strategy."""
 
-    def __init__(self, scenario: Scenario, defaults: DefaultConfig, strategy: str) -> None:
-        """Set up world, fleet, safety, belief and planner at the start of the search."""
+    def __init__(
+        self, scenario: Scenario, defaults: DefaultConfig, strategy: str, search_only: bool = False
+    ) -> None:
+        """Set up world, fleet, safety, belief and planner at the start of the search.
+
+        Args:
+            scenario: Scenario to run.
+            defaults: Project defaults.
+            strategy: Planner name ("lawnmower" or "greedy").
+            search_only: Evaluation mode: detections are recorded but do not end the search or
+                change the belief, so search effectiveness (POS_cum) can be compared over a fixed
+                time on every run.
+        """
+        self.search_only = search_only
         self.scenario = scenario
         self.defaults = defaults
         self.dt_s = defaults.sim.dt_s
@@ -181,7 +193,10 @@ class SearchMission:
     def _apply_look(self, report: SensorReport) -> None:
         if report.detected:
             self._on_detection(report)
-            return
+            if not self.search_only:
+                return
+            # search_only: every look counts as unsuccessful, so the belief and POS_cum describe
+            # the planned search alone, independent of where the person really is
         look = footprint(
             self.belief.grid,
             self.sensors[report.vehicle_id],
@@ -193,6 +208,11 @@ class SearchMission:
             self.success.add(update_no_detection(self.belief, look))
 
     def _on_detection(self, report: SensorReport) -> None:
+        if self.search_only:
+            if self.time_to_detection_s is None:
+                self.time_to_detection_s = self.t_s - self.start_s
+                self._event("detection", vehicle_id=report.vehicle_id, search_only=True)
+            return
         x, y = report.measured_xy_m
         detection = Detection(f"d_{len(self.detections) + 1}", report.t_s, report.vehicle_id, x, y)
         self.detections.append(detection)
@@ -335,7 +355,8 @@ class SearchMission:
     # ------------------------------------------------------------------ end conditions
 
     def _check_end(self) -> None:
-        if self.backend.person_recovered() and self.state is not MissionState.RECOVERED:
+        recovered = self.backend.person_recovered() and not self.search_only
+        if recovered and self.state is not MissionState.RECOVERED:
             self.state = MissionState.RECOVERED
             self.time_to_recovery_s = self.t_s - self.start_s
             self._event("state", state=self.state.value)

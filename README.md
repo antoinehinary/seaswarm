@@ -21,7 +21,7 @@ position, current, and wind-driven leeway with time-correlated noise and random 
 ```bash
 conda create -n seaswarm python=3.12 -y && conda activate seaswarm
 pip install -e ".[dev]"
-python scripts/run_drift.py --scenario scenarios/calm_single.yaml --seed 1 --gif media/drift_seed1.gif
+python scripts/run_search.py --scenario scenarios/windy_mixed.yaml --strategy greedy --seed 3 --gif media/search_greedy_seed3.gif
 ```
 
 ## Status
@@ -30,10 +30,23 @@ python scripts/run_drift.py --scenario scenarios/calm_single.yaml --seed 1 --gif
 | --- | --- | --- |
 | 1 | World and drift | done |
 | 2 | Probability map | done |
-| 3 | Vehicles, safety and baseline search | in progress |
+| 3 | Vehicles, safety and baseline search | in review |
 | 4 | Auction planner and evaluation | not started |
 | 5 | Operator agent and MCP server | not started |
 | 6 | Polish, publish and stretch | not started |
+
+![Greedy Bayesian search with two drones and a USV](media/search_greedy_seed3.gif)
+
+*Two drones and a USV search the probability map (greedy Bayesian strategy); after a detection
+the nearest USV recovers the person. The true position is not shown: the swarm only knows the
+map.*
+
+| Fleet 2 drones + 1 USV, 20 seeds | Detected within 60 min | Median time to detection |
+| --- | --- | --- |
+| windy_mixed, lawnmower baseline | 11/20 | 47.5 min |
+| windy_mixed, Bayesian greedy | 16/20 | 30.2 min |
+| calm_single, lawnmower baseline | 14/20 | 28.3 min |
+| calm_single, Bayesian greedy | 20/20 | 16.4 min |
 
 ![Probability map vs 5000 drift particles after 2 hours](media/belief_vs_particles.png)
 
