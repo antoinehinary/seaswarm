@@ -144,11 +144,16 @@ def min_separation_m(a: VehicleState, b: VehicleState, limits: SafetyConfig) -> 
 
 @dataclass(frozen=True)
 class Plan:
-    """Where a vehicle is and where it is going: remaining waypoints at constant speed."""
+    """Where a vehicle is and where it is going: remaining waypoints at constant speed.
+
+    `stop_m` is the vehicle's braking distance at its current speed, v^2 / (2 a_max): a hold or
+    the end of a path is not an instant stop, so separation checks keep that much extra room.
+    """
 
     state: VehicleState
     waypoints: Sequence[XY]
     speed_mps: float
+    stop_m: float = 0.0
 
 
 def first_conflict(
@@ -157,9 +162,10 @@ def first_conflict(
     """First (time s, distance m) within the horizon at which two plans come closer than required.
 
     Both plans are projected along their waypoints at constant speed, in 1 s steps (straight legs,
-    turns not modelled). Moments when either vehicle is inside the base zone are exempt (deck
-    operations).
+    turns not modelled). The required distance is increased by the larger braking distance of the
+    two. Moments when either vehicle is inside the base zone are exempt (deck operations).
     """
+    required_m += max(a.stop_m, b.stop_m)
     for t in np.arange(0.0, limits.separation_horizon_s + 1e-9, 1.0):
         p = position_along((a.state.x_m, a.state.y_m), a.waypoints, a.speed_mps * t)
         q = position_along((b.state.x_m, b.state.y_m), b.waypoints, b.speed_mps * t)
@@ -183,11 +189,12 @@ def check_separation(
         conflict = first_conflict(plan, other, required, base_xy_m, limits)
         if conflict is not None:
             t, distance = conflict
+            braking = max(plan.stop_m, other.stop_m)
             return Refusal(
                 RefusalCode.SEPARATION,
                 f"{plan.state.vehicle_id} would come within {distance:.0f} m of "
-                f"{other.state.vehicle_id} in {t:.0f} s; "
-                f"the minimum separation is {required:.0f} m",
+                f"{other.state.vehicle_id} in {t:.0f} s; the minimum is {required:.0f} m "
+                f"separation plus {braking:.0f} m braking distance",
                 plan.state.vehicle_id,
             )
     return None

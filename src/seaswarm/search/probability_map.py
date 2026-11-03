@@ -68,9 +68,11 @@ class ProbabilityMap:
             raise ValueError(f"total probability is {self.total():.12f}, expected 1")
 
     def mean_m(self) -> Array:
-        """Mean (x, y) of the in-grid probability, metres."""
+        """Mean (x, y) of the in-grid probability, metres (grid centre if none is left)."""
         x, y = self.grid.centres_m()
         mass = self.p.sum()
+        if mass <= 0.0:
+            return np.array([x.mean(), y.mean()])
         return np.array([(self.p * x).sum(), (self.p * y).sum()]) / mass
 
     def covariance_m2(self) -> Array:

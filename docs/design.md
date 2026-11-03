@@ -227,7 +227,9 @@ trial with the POD at the true distance, using the `sensors` random stream.
 ### 5.1 Vehicles
 
 Unicycle kinematics with heading-rate, speed and acceleration limits, integrated at 1 s; USVs are
-carried by the surface current, drones ignore wind (v1). Drones fly in altitude layers 60 / 80 /
+carried by the surface current, drones ignore wind (v1). The heading and speed first-order loops
+are discretised exactly (the error shrinks by `exp(-k dt)` per step): forward Euler gives
+`err[n+1] = (1 - k dt) err[n]`, which with the drone's `k dt = 2` oscillated forever. Drones fly in altitude layers 60 / 80 /
 40 m by index, so drones launched together are vertically separated; footprint and peak POD follow
 from the altitude. Energy drains at `(idle + (1 - idle) (v / v_cruise)^2) / endurance` (equal to
 `1 / endurance` at cruise; `idle` = 0.7 for a multirotor, 0.2 for a USV). Vehicles idle at the base
@@ -253,8 +255,12 @@ Every command goes through `SafetyGuard`, which refuses with a code and a one-se
 | One searcher per tile (dispatch to a detection exempt) | `TILE_OCCUPIED` |
 | Vehicle unknown, returning, in turnaround or stranded | `VEHICLE_UNAVAILABLE` |
 
-Recalls are never refused. Every step the guard forces a return to base if the reserve would be
-broken within 10 s, and counts actual violations (separation, geofence, stranded) per episode.
+Recalls are never refused. Every step the guard (1) forces a return to base if the reserve would
+be broken within 10 s; (2) re-projects every constrained pair's remaining planned paths over 30 s
+and, on a predicted conflict, makes one vehicle hold (one in transit rather than one returning;
+among equals the one commanded last) and triggers a replan, because paths accepted at different
+times can converge after the command-time horizon; (3) counts actual violations (separation,
+geofence, stranded) per episode.
 
 ### 5.3 Search theory used by the planners
 
@@ -263,8 +269,12 @@ broken within 10 s, and counts actual violations (separation, geofence, stranded
   29 m; USV: 239 m. Sweep rate W v: 2.5 km^2/h (EO drone), 3.4 km^2/h (USV).
 - **Track spacing** `W (1 - 0.1)`.
 - **POD of one tile sweep**: random-search formula `1 - exp(-W L / A)`.
-- **Utility** `U = w_prio POD_sweep p(tile) / (t_travel + t_search)`, `-inf` if the energy reserve
-  would be broken. Sorties are cut to the longest affordable prefix of the pattern.
+- **Effort-limited sweep**: L is the full lawnmower length if affordable, otherwise the track
+  length the vehicle can still fly before it must go home with the reserve, spread evenly over
+  the tile (spacing A / L). A tile is feasible if one track across it fits. Without this, a weak
+  sensor (EO camera at night, W of a few metres) makes every full pattern longer than a battery.
+- **Utility** `U = w_prio POD_sweep p(tile) / (t_travel + t_search)`, `-inf` if infeasible.
+  Sorties are cut to the longest affordable prefix of the pattern.
 
 ### 5.4 Strategies
 
@@ -274,16 +284,37 @@ broken within 10 s, and counts actual violations (separation, geofence, stranded
   the belief after the start.
 - **Greedy**: every replan, vehicles in id order take the feasible unclaimed tile of highest
   utility (tiles being searched stay claimed).
+- **Auction**: sequential single-item auction with bundles over the top 3 x fleet tiles. Each
+  round every vehicle bids its best marginal gain for inserting a remaining tile into its bundle
+  (insertion heuristic); the highest bid wins (seeded tie-break); bundles stop at 3 tiles or when
+  nobody bids a positive gain. Bundle value is the time-discounted reward
+  `sum_j gain_j exp(-t_j / tau)`, tau = 1 h (diminishing marginal gains, as CBBA requires). Tiles
+  held by another vehicle are not on offer (no swap cycles). Receding horizon: only the first tile
+  is executed. Written as bid/award messages so a decentralised CBBA is a small step.
 
 ### 5.5 Mission loop and evaluation mode
 
 Each 1 s step: backend looks, Bayes updates per look, belief predict every 60 s, safety watch,
-replan on triggers (start, every 120 s, vehicle idle, low energy, refusal, return to service;
-event triggers at most every 10 s). After a detection the detecting drone holds over the belief
+replan on triggers. Start, periodic (120 s), detection, low energy, operator priority, refusal,
+conflict hold and return to service replan at the next step; "vehicle idle" is rate-limited to
+every 10 s. A refused (vehicle, tile) choice is excluded for one replan period, so an immediate
+replan never repeats it. After a detection the detecting drone holds over the belief
 mean, the nearest USV is dispatched until it is within 25 m of the person (recovery), and the
 other vehicles return. In `search_only` mode (evaluation) every look counts as unsuccessful and
 the run continues to its time limit, so POS_cum measures the planned search alone; it is then
 identical for every seed, which a test checks.
+
+### 5.6 Evaluation method
+
+- 60 random scenarios (`scripts/generate_scenarios.py --seed 0`): wind 2-15 m/s, current
+  0-0.8 m/s, random directions, night 30 %, LKP placed upstream of the expected drift so the
+  person stays in the area. Seed N is scenario gen_N.
+- Per (strategy, fleet, seed): a normal run (detection, recovery, safety) and a 120 min
+  search-only run (POS_cum every minute).
+- Fraction found vs time: Kaplan-Meier (detections are right-censored at the 3 h limit; with a
+  common limit it equals the empirical fraction, but it stays correct with mixed run lengths).
+- Intervals: 95 % percentile bootstrap over scenarios, fixed seed. Strategy comparisons are
+  paired on identical scenarios and seeds, which removes scenario-to-scenario variance.
 
 ## 6. Limitations
 
@@ -296,8 +327,17 @@ identical for every seed, which a test checks.
 - Drones ignore wind; turning is not modelled in separation predictions (straight legs at
   constant speed).
 - POS_cum is slightly optimistic against the truth (within 2 sigma over 100 seeds).
+- Several vehicles launching together still produce separation refusals at the base (resolved by
+  replanning); there is no launch or approach sequencing.
+- Effort-limited sweeps assume the effort is spread evenly over a tile; bundle tasks after the
+  first are scored with the vehicle's current energy.
 
 ## References
+
+- H.-L. Choi, L. Brunet, J. P. How, "Consensus-Based Decentralized Auctions for Robust Task
+  Allocation", IEEE Transactions on Robotics 25(4), 2009.
+- E. L. Kaplan, P. Meier, "Nonparametric Estimation from Incomplete Observations", Journal of the
+  American Statistical Association 53(282), 1958.
 
 - B. O. Koopman, "Search and Screening: General Principles with Historical Applications",
   Pergamon, 1980.

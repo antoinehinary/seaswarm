@@ -104,7 +104,8 @@ def test_separation_refusal_is_predictive() -> None:
     refusal = guard.submit(Proposal(GoTo("drone_4", -300.0, 0.0, 15.0)), sim.t_s)
     assert refusal.code is RefusalCode.SEPARATION
     assert refusal.reason == (
-        "drone_4 would come within 0 m of drone_1 in 20 s; the minimum separation is 30 m"
+        "drone_4 would come within 30 m of drone_1 in 19 s; "
+        "the minimum is 30 m separation plus 28 m braking distance"
     )
     # different layers, or a USV below a drone, are not conflicts
     _place(sim, "drone_2", 300.0, 0.0, yaw=np.pi)

@@ -263,3 +263,15 @@ crosswind lobes, current at the map mean, predict up to 60 s behind the looks).
   4 drones). With effort-limited sweeps: 0.31 (greedy and auction) vs 0.19.
 - **Alternatives:** a minimum track spacing (arbitrary), forbidding EO drones at night (hides the
   planner flaw).
+
+## 2026-11-03 — Braking-distance margin in separation predictions
+
+- **Decision:** a predicted conflict is declared when two plans come closer than the required
+  separation plus the larger braking distance `v^2 / (2 a_max)` of the two vehicles (28 m for a
+  drone at 15 m/s, 16 m for a USV at 4 m/s), at command time and in the per-step watch.
+- **Why:** the first full 600-run grid still had 2 separation violations (4 drones, auction). In
+  both, the hold or the end of a path was predicted as an instant stop, but a drone needs ~28 m to
+  stop and coasts past its last waypoint's 15 m acceptance radius, so a predicted 31 m miss
+  became an actual 26-29 m approach.
+- **Alternatives:** model deceleration inside the projection (more code, same effect); larger
+  fixed separation minima (changes the brief's rules).

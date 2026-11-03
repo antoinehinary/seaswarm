@@ -136,7 +136,10 @@ class SafetyGuard:
                     vid, proposal.tile_id, self._tile_owner, proposal.dispatch
                 ),
                 lambda: rules.check_separation(
-                    Plan(state, waypoints, speed), self._others(vid), self.base_xy_m, self.limits
+                    Plan(state, waypoints, speed, speed**2 / (2.0 * cfg.max_accel_mps2)),
+                    self._others(vid),
+                    self.base_xy_m,
+                    self.limits,
                 ),
             ]
         )
@@ -149,7 +152,8 @@ class SafetyGuard:
         waypoints, speed = self._planned.get(state.vehicle_id, ((), 0.0))
         left = state.waypoints_left
         remaining = waypoints[len(waypoints) - left :] if left else ()
-        return Plan(state, remaining, speed if remaining else 0.0)
+        stop_m = state.speed_mps**2 / (2.0 * self._config(state).max_accel_mps2)
+        return Plan(state, remaining, speed if remaining else 0.0, stop_m)
 
     def _others(self, vehicle_id: str) -> list[Plan]:
         """Plans of every other vehicle."""
