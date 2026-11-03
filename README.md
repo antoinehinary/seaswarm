@@ -24,6 +24,24 @@ pip install -e ".[dev]"
 python scripts/run_search.py --scenario scenarios/windy_mixed.yaml --strategy auction --seed 3 --gif media/search_auction_seed3.gif
 ```
 
+## Operator agent
+
+An LLM agent (qwen3:8b, local, through Ollama) directs the search in plain language. It only
+calls the ten tools of an MCP server; every order it gives goes through the same safety layer as
+the automatic planner.
+
+```bash
+ollama pull qwen3:8b
+seaswarm-agent "prioritise the north sector, then send a boat to drone 2's detection" \
+    --scenario scenarios/windy_mixed.yaml --seed 14 --warmup-s 520
+seaswarm-agent --interactive --scenario scenarios/windy_mixed.yaml
+```
+
+Evaluation on ten operator instructions with machine-checked outcomes: **9/10** with qwen3:8b
+([results/agent_eval.md](results/agent_eval.md)). The failure: asked for a position outside the
+geofence, the agent substituted a reachable one instead of reporting back
+([analysis](docs/decisions.md)).
+
 ## Status
 
 | Phase | Name | Status |
@@ -32,7 +50,7 @@ python scripts/run_search.py --scenario scenarios/windy_mixed.yaml --strategy au
 | 2 | Probability map | done |
 | 3 | Vehicles, safety and baseline search | done |
 | 4 | Auction planner and evaluation | done |
-| 5 | Operator agent and MCP server | in progress |
+| 5 | Operator agent and MCP server | in review |
 | 6 | Polish, publish and stretch | not started |
 
 ![Greedy Bayesian search with two drones and a USV](media/search_greedy_seed3.gif)
