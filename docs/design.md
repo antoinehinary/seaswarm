@@ -316,7 +316,50 @@ identical for every seed, which a test checks.
 - Intervals: 95 % percentile bootstrap over scenarios, fixed seed. Strategy comparisons are
   paired on identical scenarios and seeds, which removes scenario-to-scenario variance.
 
-## 6. Limitations
+## 6. Operator agent and MCP server
+
+### 6.1 Layers
+
+```
+operator (plain language) -> CodeAgent (qwen3:8b via Ollama) -> MCPClient (stdio)
+  -> FastMCP server -> Operations -> SearchMission -> SafetyGuard -> Sim2DBackend
+```
+
+The agent never imports the simulator: it starts the server as a subprocess and only calls its
+tools. Every vehicle command, from the agent or from the planner, goes through the same safety
+guard.
+
+### 6.2 Tools
+
+Ten tools, SI units, documented limits, JSON objects out, never raising:
+`get_situation`, `get_probability_map`, `set_priority_area`, `set_priority_sector` (3 x 3 split of
+the search area), `clear_priority_areas`, `assign_vehicle`, `dispatch_to_detection`,
+`recall_vehicle`, `set_strategy`, `advance_simulation` (at most 600 s per call: the operator
+controls simulated time). Refused or invalid requests return
+`{"ok": false, "refusal": {"code", "reason", "vehicle_id"}}`, with the safety layer's sentence
+as the reason. Positions are also given as bearing and distance from the base.
+
+### 6.3 Operator commands and the automatic planner
+
+A vehicle under a direct operator command (`assign_vehicle`, `dispatch_to_detection`,
+`recall_vehicle`) is left alone by the planner and the automatic recovery until that command ends
+(task finished, back at base, or stranded); then it rejoins the automatic search. A USV the
+operator dispatches to a detection becomes the recovery vehicle. Priority areas change planner
+utility only, never the probability map.
+
+### 6.4 Agent
+
+- smolagents `CodeAgent`, `LiteLLMModel("ollama_chat/qwen3:8b", num_ctx=32768, temperature 0,
+  think off)`, 12 steps per instruction; a cloud model only through `SEASWARM_MODEL_ID`.
+- `MCPClient(..., structured_output=False)` returns tool results as JSON text; a thin wrapper
+  parses it into a dict and maps positional arguments, so the agent's code reads
+  `situation["vehicles"]`.
+- System prompt: SAR coordinator; get_situation first; unit conversions written out (knots,
+  nautical miles, bearing and distance to x, y); never invent ids; never repeat a refused call;
+  verify with get_situation; 5-line situation report.
+- Tests never call an LLM: `ScriptedModel` replays code blocks through the real MCP stack.
+
+## 7. Limitations
 
 - Leeway coefficients are fleet-average regressions for one object class; real persons differ.
 - Fields are synthetic and spatially simple; no tides, Stokes drift or coastline.

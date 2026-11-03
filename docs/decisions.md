@@ -289,3 +289,40 @@ crosswind lobes, current at the map mean, predict up to 60 s behind the looks).
   outside the base zone gives zero violations in all 300 two-USV search-only runs.
 - **Alternatives:** a minimum hold distance larger than the threshold (would need a model of the
   stopping manoeuvre).
+
+## 2026-11-03 — Operator API in its own module; operator commands pre-empt the planner
+
+- **Decision:** `seaswarm/operations.py` turns a `SearchMission` into dict-returning operator
+  commands and reports; the MCP server is a thin typed layer over it. A vehicle under a direct
+  operator command is excluded from planning and automatic recovery until the command ends.
+- **Why:** keeps `mission.py` near its size budget, makes every tool testable without MCP, and
+  gives operator orders a clear lifetime (otherwise the next periodic replan would undo them
+  within two minutes).
+- **Alternatives:** tools calling the mission directly (mixing protocol and logic); operator
+  orders as permanent overrides (vehicles never return to the automatic search).
+
+## 2026-11-03 — Agent receives dicts with structured_output=False
+
+- **Decision:** keep `MCPClient(..., structured_output=False)` (brief) and wrap each tool on the
+  agent side to parse the JSON text into a dict and accept positional arguments.
+- **Why:** with structured output off, mcpadapt returns the tool's JSON as a string; small models
+  then manipulate strings or retry failing calls. The wrapper keeps the protocol simple and the
+  agent's code natural (`situation["detections"]`).
+- **Alternatives:** structured output on (output schemas in the prompt, newer and less tested
+  path in mcpadapt).
+
+## 2026-11-03 — Agent evaluation: 9/10 with qwen3:8b, one known failure
+
+- **Result:** 9/10 instructions pass (target >= 7/10), 2-6 steps and 8-39 s each, about 3 min
+  in total on the MacBook. See `results/agent_eval.md`.
+- **Failure analysis (`refused_outside_geofence`):** asked to search around (0, 9000) m, outside
+  the geofence, the agent read the GEOFENCE refusal, then walked the target south through three
+  ENERGY_RESERVE refusals until (0, 3000) m was accepted, and its final answer was a raw
+  situation dict. It silently replaced the operator's position with one it chose.
+- **What was changed:** the prompt now says to try another vehicle for the same order, never to
+  substitute a position the operator gave, and that final_answer must be a text report. Both are
+  the intended behaviour, not tuning to the case; the 8B model still substitutes the position.
+  No further prompt iteration (the brief: analyse before tuning).
+- **Next option if needed:** make the tool refuse with an explicit instruction ("report this to
+  the operator") as skypilot-agent's refusals do, or evaluate a larger model through
+  `SEASWARM_MODEL_ID`.

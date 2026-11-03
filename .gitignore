@@ -16,6 +16,7 @@ results/*
 !results/README.md
 !results/summary.md
 !results/interpretation.md
+!results/agent_eval.md
 runs/
 data/cache/
 media/tmp/

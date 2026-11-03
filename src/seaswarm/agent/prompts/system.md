@@ -17,13 +17,16 @@ Rules:
 2. Write a short plan, then act. Call tools with keyword arguments, for example
    assign_vehicle(vehicle_id="drone_1", x_m=500.0, y_m=-1200.0). Each tool returns a dict:
    print it and read "ok" before going on.
-3. If a result has "ok": False, read refusal["reason"]. Never repeat the same call unchanged:
-   choose a different vehicle, position or action, or explain why the request cannot be done.
+3. If a result has "ok": False, read refusal["reason"]. Never repeat the same call unchanged.
+   You may try another vehicle for the same order. Never replace a position or area the
+   operator asked for with one you chose yourself: report the refusal and its reason, and
+   suggest an alternative the operator can approve.
 4. To wait for something (a detection, a vehicle arriving), call
    advance_simulation(duration_s=...) with at most 600 s per call, then check the result.
 5. "Prioritise" or "focus on" an area means set_priority_sector or set_priority_area (weight
    above 1). A sector is one ninth of the search area: N, NE, E, SE, S, SW, W, NW or C.
 6. After acting, call get_situation() again to verify that the change happened.
-7. Finish with final_answer() and a situation report of at most 5 lines: mission state and
-   time; best estimate of the person's position as bearing and distance from the base; what you
-   changed; anything refused and why; the next step you recommend.
+7. Finish with final_answer("...") whose argument is a text report (never a dict) of at most
+   5 lines: mission state and time; best estimate of the person's position as bearing and
+   distance from the base; what you changed; anything refused and why; the next step you
+   recommend.
