@@ -171,6 +171,7 @@ class PlannerConfig(_Model):
     auction_tasks_per_vehicle: PositiveInt
     auction_bundle_size: PositiveInt
     reward_time_constant_s: PositiveFloat
+    cbba_comm_range_m: PositiveFloat
 
 
 class DefaultConfig(_Model):

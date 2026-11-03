@@ -31,6 +31,7 @@ from seaswarm.planning.base import (
     ReplanTrigger,
     VehicleCapability,
 )
+from seaswarm.planning.cbba import CBBAPlanner
 from seaswarm.planning.greedy import GreedyPlanner
 from seaswarm.planning.lawnmower import LawnmowerPlanner
 from seaswarm.planning.tiles import TileGrid
@@ -71,21 +72,27 @@ class MissionState(StrEnum):
     TIMEOUT = "TIMEOUT"
 
 
-STRATEGIES = ("lawnmower", "greedy", "auction")
+STRATEGIES = ("lawnmower", "greedy", "auction", "cbba")
 
 
 def make_planner(
     name: str, tiles: TileGrid, defaults: DefaultConfig, tiebreak: np.random.Generator
 ) -> Planner:
-    """Planner by strategy name."""
-    match name:
-        case "greedy":
+    """Planner by strategy name; "cbba@<range_m>" or "cbba@inf" sets CBBA's radio range."""
+    base, _, option = name.partition("@")
+    match base:
+        case "greedy" if not option:
             return GreedyPlanner(tiles)
-        case "lawnmower":
+        case "lawnmower" if not option:
             return LawnmowerPlanner(defaults.planner.lawnmower_prior_mass)
-        case "auction":
+        case "auction" if not option:
             return AuctionPlanner(tiles, defaults.planner, tiebreak)
-    raise ValueError(f"unknown strategy {name!r}; choose one of {', '.join(STRATEGIES)}")
+        case "cbba":
+            range_m = float(option) if option else defaults.planner.cbba_comm_range_m
+            return CBBAPlanner(tiles, defaults.planner, tiebreak, range_m)
+    raise ValueError(
+        f"unknown strategy {name!r}; choose one of {', '.join(STRATEGIES)} (or cbba@<range_m>)"
+    )
 
 
 @dataclass

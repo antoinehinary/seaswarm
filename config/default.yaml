@@ -104,3 +104,4 @@ planner:
   auction_tasks_per_vehicle: 3    # K = 3 x fleet size candidate tiles per auction
   auction_bundle_size: 3          # B: at most 3 tiles planned ahead per vehicle
   reward_time_constant_s: 3600.0  # auction reward of clearing probability p at time t: p exp(-t / tau)
+  cbba_comm_range_m: 3000.0       # radio range between vehicles for strategy "cbba"

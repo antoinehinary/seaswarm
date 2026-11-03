@@ -172,9 +172,10 @@ def build_server(ops: Operations) -> FastMCP:
     @mcp.tool()
     def set_strategy(
         name: Annotated[
-            Literal["lawnmower", "greedy", "auction"],
+            Literal["lawnmower", "greedy", "auction", "cbba"],
             Field(
-                description="lawnmower: fixed strips; greedy or auction: follow the probability map"
+                description="lawnmower: fixed strips; greedy, auction or cbba (decentralised "
+                "auction): follow the probability map"
             ),
         ],
     ) -> Result:
@@ -216,7 +217,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="SeaSwarm MCP server (stdio).")
     parser.add_argument("--scenario", type=Path, default=Path("scenarios/windy_mixed.yaml"))
     parser.add_argument("--seed", type=int, help="overrides the scenario seed")
-    parser.add_argument("--strategy", default="auction", choices=["lawnmower", "greedy", "auction"])
+    parser.add_argument("--strategy", default="auction", help="lawnmower, greedy, auction, cbba")
     parser.add_argument(
         "--warmup-s", type=float, default=0.0, help="simulate this long before serving"
     )

@@ -176,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.WARNING)
     args = parse_args(argv)
     strategies = args.strategy.split(",")
-    unknown = set(strategies) - set(STRATEGIES)
+    unknown = {s for s in strategies if s.partition("@")[0] not in STRATEGIES}
     if unknown:
         raise SystemExit(f"unknown strategy {sorted(unknown)}; choose from {list(STRATEGIES)}")
     fleets = list(FLEETS) if args.fleet == "all" else args.fleet.split(",")

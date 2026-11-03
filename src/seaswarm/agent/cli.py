@@ -107,7 +107,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--interactive", action="store_true")
     parser.add_argument("--scenario", type=Path, default=ServerOptions.scenario)
     parser.add_argument("--seed", type=int)
-    parser.add_argument("--strategy", default="auction", choices=["lawnmower", "greedy", "auction"])
+    parser.add_argument("--strategy", default="auction", help="lawnmower, greedy, auction, cbba")
     parser.add_argument("--warmup-s", type=float, default=0.0, help="simulate this long first")
     parser.add_argument("--model", help="LiteLLM model id (default: config/agent.yaml)")
     parser.add_argument("--max-steps", type=int)
