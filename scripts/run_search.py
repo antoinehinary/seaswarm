@@ -10,7 +10,8 @@ import argparse
 import time
 from pathlib import Path
 
-from seaswarm.config import load_default_config, load_scenario
+from seaswarm.config import FleetConfig, load_default_config, load_scenario
+from seaswarm.eval.run import FLEETS
 from seaswarm.logging_utils import RunRecorder
 from seaswarm.mission import SearchMission
 from seaswarm.viz.gif import write_gif
@@ -23,6 +24,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--scenario", type=Path, required=True)
     parser.add_argument("--strategy", choices=["lawnmower", "greedy", "auction"], required=True)
     parser.add_argument("--seed", type=int, help="overrides the scenario seed")
+    parser.add_argument("--fleet", choices=list(FLEETS), help="overrides the scenario fleet")
     parser.add_argument("--runs-dir", type=Path, default=Path("runs"))
     parser.add_argument("--gif", type=Path, help="also render a replay GIF")
     parser.add_argument("--fps", type=float, default=10.0)
@@ -38,6 +40,9 @@ def main(argv: list[str] | None = None) -> int:
     scenario = load_scenario(args.scenario)
     if args.seed is not None:
         scenario = scenario.model_copy(update={"seed": args.seed})
+    if args.fleet is not None:
+        fleet = FleetConfig(**FLEETS[args.fleet])
+        scenario = scenario.model_copy(update={"fleet": fleet})
     mission = SearchMission(scenario, load_default_config(), args.strategy)
     recorder = RunRecorder(mission)
     while not mission.done:

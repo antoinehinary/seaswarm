@@ -38,23 +38,47 @@ class RunLog:
             data = {key: npz[key] for key in npz.files}
         return cls(data, json.loads(str(data["meta"])))
 
-    def view_km(self, margin_m: float = 400.0) -> tuple[tuple[float, float], tuple[float, float]]:
-        """Square view (km) around the vehicles' search tracks and the belief's mass."""
+    def view_km(self, margin_m: float = 1500.0) -> tuple[tuple[float, float], tuple[float, float]]:
+        """Square view (km) around where the search happens: the belief's likely cells over the
+        run (each snapshot relative to its own maximum) and the detections, plus a margin. The
+        base may fall outside; `render_frames` then points to it.
+        """
         d = self.data
-        base = d["base_m"]
-        xy = d["xy_m"].reshape(-1, 2)
-        away = xy[np.hypot(*(xy - base).T) > 500.0]
         belief = d["belief"]
         x0, x1, y0, y1 = d["grid_extent_m"]
         ny, nx = belief.shape[1:]
-        xs = np.linspace(x0, x1, nx + 1)[:-1] + (x1 - x0) / nx / 2
-        ys = np.linspace(y0, y1, ny + 1)[:-1] + (y1 - y0) / ny / 2
-        heavy = belief.max(axis=0) > 0.2 * belief.max()
-        rows, cols = np.nonzero(heavy)
-        pts = np.vstack([away, np.column_stack([xs[cols], ys[rows]])])
+        xs = x0 + (np.arange(nx) + 0.5) * (x1 - x0) / nx
+        ys = y0 + (np.arange(ny) + 0.5) * (y1 - y0) / ny
+        peaks = belief.max(axis=(1, 2), keepdims=True)
+        likely = (belief > 0.2 * np.maximum(peaks, 1e-300)).any(axis=0)
+        rows, cols = np.nonzero(likely)
+        pts = np.vstack([np.column_stack([xs[cols], ys[rows]]), d["detections"][:, 1:3]])
         lo, hi = pts.min(axis=0) - margin_m, pts.max(axis=0) + margin_m
         centre, half = (lo + hi) / 2, max(hi - lo) / 2
         return tuple((centre[0] + [-half, half]) / 1e3), tuple((centre[1] + [-half, half]) / 1e3)
+
+
+def _point_to_base(ax, base_km: np.ndarray, xlim: tuple, ylim: tuple) -> None:
+    """If the base is off-screen, an arrow on the frame edge pointing to it, with its distance."""
+    centre = np.array([sum(xlim) / 2, sum(ylim) / 2])
+    if xlim[0] <= base_km[0] <= xlim[1] and ylim[0] <= base_km[1] <= ylim[1]:
+        return
+    direction = base_km - centre
+    half = (xlim[1] - xlim[0]) / 2
+    edge = centre + direction / np.abs(direction).max() * half * 0.88
+    distance_km = (
+        float(np.hypot(*direction))
+        - half * 0.88 * float(np.hypot(*direction)) / np.abs(direction).max()
+    )
+    ax.annotate(
+        f"base {distance_km:.1f} km",
+        xy=edge,
+        xytext=edge - direction / np.hypot(*direction) * half * 0.18,
+        color="w",
+        fontsize=8,
+        ha="center",
+        arrowprops={"arrowstyle": "->", "color": "w"},
+    )
 
 
 def render_frames(
@@ -71,6 +95,7 @@ def render_frames(
     ax = fig.add_axes((0.1, 0.08, 0.78, 0.84))
     xlim, ylim = log.view_km()
     ax.set(xlim=xlim, ylim=ylim, aspect="equal", xlabel="east (km)", ylabel="north (km)")
+    _point_to_base(ax, d["base_m"] / 1e3, xlim, ylim)
     heat = ax.imshow(
         _relative(d["belief"][0]), origin="lower", extent=extent_km, cmap="viridis", norm=norm
     )
