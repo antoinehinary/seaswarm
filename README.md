@@ -192,7 +192,7 @@ drift model and its spread within 2 %; against 100 000 particles the Hellinger d
 | 3 | Vehicles, safety and baseline search | done |
 | 4 | Auction planner and evaluation | done |
 | 5 | Operator agent and MCP server | done |
-| 6 | Polish, publish and stretch | in progress |
+| 6 | Polish, publish and stretch | done |
 
 ## Licence
 
