@@ -139,6 +139,7 @@ class Operations:
             "priority_areas": [
                 {
                     "id": a.area_id,
+                    "rect_m": [a.x_min_m, a.y_min_m, a.x_max_m, a.y_max_m],
                     "weight": a.weight,
                     "expires_in_s": round(a.expires_s - self.m.t_s, 1),
                 }

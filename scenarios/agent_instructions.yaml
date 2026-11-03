@@ -1,0 +1,59 @@
+# Operator instructions for eval/agent_eval.py. Each runs on a fresh mission (scenario, seed,
+# strategy, warm-up) and passes if every check holds on the final state read from the server.
+# Checks: sector_priority, area_count, vehicle_status, vehicle_task, operator_search_near,
+# strategy, sim_time_at_least, report_mentions, report_bearing.
+
+- id: north_sector
+  instruction: "Prioritise the north sector."
+  checks:
+    - {type: sector_priority, sector: "N"}
+
+- id: north_east_20_min
+  instruction: "Focus the search on the north-east for the next 20 minutes."
+  checks:
+    - {type: sector_priority, sector: "NE", max_duration_s: 1200}
+
+- id: recall_drone
+  instruction: "Recall drone 1 to base."
+  warmup_s: 300
+  checks:
+    - {type: vehicle_status, vehicle: "drone_1", status: ["rtb", "turnaround"]}
+
+- id: lawnmower
+  instruction: "Switch the search to the lawnmower pattern."
+  checks:
+    - {type: strategy, name: "lawnmower"}
+
+- id: usv_east_of_estimate
+  instruction: "Send usv_1 to search around a point 1.5 km east of the best estimate of the person's position."
+  checks:
+    - {type: operator_search_near, vehicle: "usv_1", dx_from_estimate_m: 1500, dy_from_estimate_m: 0, tolerance_m: 300}
+
+- id: boat_to_drone_detection
+  instruction: "Send a boat to drone 2's detection."
+  seed: 14
+  warmup_s: 520
+  checks:
+    - {type: vehicle_task, vehicle: "usv_1", contains: "dispatched to detection d_1"}
+
+- id: two_nautical_miles_north
+  instruction: "Have drone 2 search around a point 2 nautical miles north of the base."
+  checks:
+    - {type: operator_search_near, vehicle: "drone_2", x_from_base_m: 0, y_from_base_m: 3704, tolerance_m: 300}
+
+- id: refused_outside_geofence
+  instruction: "Send drone 1 to search around x = 0 m, y = 9000 m."
+  checks:
+    - {type: report_mentions, any: ["geofence", "outside", "refused", "cannot"]}
+    - {type: vehicle_task, vehicle: "drone_1", not_contains: "operator"}
+
+- id: run_ten_minutes
+  instruction: "Let the search run for 10 minutes, then tell me what happened."
+  checks:
+    - {type: sim_time_at_least, seconds: 600}
+
+- id: best_estimate_report
+  instruction: "Where is the person most likely to be? Give the bearing and distance from the base."
+  warmup_s: 600
+  checks:
+    - {type: report_bearing, tolerance_deg: 5}
