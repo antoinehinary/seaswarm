@@ -31,8 +31,8 @@ python scripts/run_search.py --scenario scenarios/windy_mixed.yaml --strategy au
 | 1 | World and drift | done |
 | 2 | Probability map | done |
 | 3 | Vehicles, safety and baseline search | done |
-| 4 | Auction planner and evaluation | in review |
-| 5 | Operator agent and MCP server | not started |
+| 4 | Auction planner and evaluation | done |
+| 5 | Operator agent and MCP server | in progress |
 | 6 | Polish, publish and stretch | not started |
 
 ![Greedy Bayesian search with two drones and a USV](media/search_greedy_seed3.gif)

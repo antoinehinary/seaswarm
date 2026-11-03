@@ -129,7 +129,13 @@ class SearchMission:
         self.motion = BeliefMotion.from_scenario(scenario, defaults)
         self.success = SuccessTracker()
         self.tiles = TileGrid.from_grid(self.belief.grid, defaults.planner.tile_size_m)
-        self.planner = make_planner(strategy, self.tiles, defaults, rngs.planner_tiebreak)
+        self.strategy = strategy
+        self._tiebreak = rngs.planner_tiebreak
+        self.planner = make_planner(strategy, self.tiles, defaults, self._tiebreak)
+        # vehicles under a direct operator command, left alone by the planner and the automatic
+        # recovery until that command ends (vehicle -> what it was told to do)
+        self.operator_tasks: dict[str, str] = {}
+        self.rescuer_id: str | None = None  # USV chosen by the operator for the recovery
         self.prefs = OperatorPrefs()
 
         self.sensors: dict[str, SensorModel] = {}
@@ -274,12 +280,31 @@ class SearchMission:
 
     def _watch_status(self) -> None:
         for state in self.states():
-            before = self._last_status[state.vehicle_id]
+            vid = state.vehicle_id
+            before = self._last_status[vid]
             if state.status is VehicleStatus.IDLE and before is VehicleStatus.TURNAROUND:
                 self._pending.add(ReplanTrigger.RETURNED)
             elif state.status is VehicleStatus.IDLE and before is VehicleStatus.TRANSIT:
                 self._pending.add(ReplanTrigger.VEHICLE_IDLE)
-            self._last_status[state.vehicle_id] = state.status
+            ended = state.status in (VehicleStatus.TURNAROUND, VehicleStatus.STRANDED) or (
+                state.status is VehicleStatus.IDLE and before is VehicleStatus.TRANSIT
+            )
+            if vid in self.operator_tasks and ended:
+                self._event("operator_task_done", vehicle_id=vid, task=self.operator_tasks.pop(vid))
+            self._last_status[vid] = state.status
+
+    def set_strategy(self, name: str) -> None:
+        """Switch the planning strategy; replans at the next step."""
+        self.planner = make_planner(name, self.tiles, self.defaults, self._tiebreak)
+        self.strategy = name
+        self._event("strategy", name=name)
+        self._pending.add(ReplanTrigger.OPERATOR)
+
+    def operator_command(self, vehicle_id: str, label: str) -> None:
+        """Mark a vehicle as under a direct operator command (planner leaves it alone)."""
+        self.operator_tasks[vehicle_id] = label
+        self._event("operator_command", vehicle_id=vehicle_id, task=label)
+        self._pending.add(ReplanTrigger.OPERATOR)
 
     def set_priority_area(self, area: PriorityArea) -> None:
         """Add an operator priority area (changes planner utility, never the belief); replans."""
@@ -320,7 +345,7 @@ class SearchMission:
         self._last_event_replan_s = self.t_s
         if ReplanTrigger.PERIODIC in triggers or ReplanTrigger.START in triggers:
             self._last_replan_s = self.t_s
-        states = self.states()
+        states = [s for s in self.states() if s.vehicle_id not in self.operator_tasks]
         plan = self.planner.plan(self.view(), self.belief, states, self.prefs)
         self._event("replan", triggers=[t.value for t in triggers], assigned=sorted(plan))
         by_id = {s.vehicle_id: s for s in states}
@@ -367,14 +392,21 @@ class SearchMission:
             if s.vehicle_type is VehicleType.USV
             and s.status in (VehicleStatus.IDLE, VehicleStatus.TRANSIT)
         ]
-        rescuer = min(
-            usvs, key=lambda s: np.hypot(s.x_m - target[0], s.y_m - target[1]), default=None
+        chosen = [s for s in usvs if s.vehicle_id == self.rescuer_id]
+        rescuer = (
+            chosen[0]
+            if chosen
+            else min(
+                usvs, key=lambda s: np.hypot(s.x_m - target[0], s.y_m - target[1]), default=None
+            )
         )
         for state in self.states():
             vid = state.vehicle_id
             cfg = self.capabilities[vid].config
             if state.status not in (VehicleStatus.IDLE, VehicleStatus.TRANSIT):
                 continue  # returning, in turnaround or stranded: leave it alone
+            if vid in self.operator_tasks and vid != self.rescuer_id:
+                continue  # the operator's command stands
             if rescuer is not None and vid == rescuer.vehicle_id:
                 command = GoTo(vid, float(target[0]), float(target[1]), cfg.max_speed_mps)
             elif vid == watcher and state.vehicle_type is VehicleType.DRONE:

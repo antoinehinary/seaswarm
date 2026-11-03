@@ -142,6 +142,7 @@ class ReplanTrigger(StrEnum):
     REFUSAL = "refusal"
     RETURNED = "returned"
     CONFLICT = "conflict"  # the safety layer stopped a vehicle to keep separation
+    OPERATOR = "operator"  # a direct operator command or strategy change
 
 
 class Planner(Protocol):
