@@ -164,16 +164,33 @@ def first_conflict(
     Both plans are projected along their waypoints at constant speed, in 1 s steps (straight legs,
     turns not modelled). The required distance is increased by the larger braking distance of the
     two. Moments when either vehicle is inside the base zone are exempt (deck operations).
+
+    Escape exception: if the pair is already closer than required right now (outside the base
+    zone), only closing counts, so the vehicles may always move apart and a hold can never trap
+    them. Everywhere else the rule is strict, so two vehicles launched together that diverge too
+    slowly are still refused.
     """
     required_m += max(a.stop_m, b.stop_m)
+    base = np.asarray(base_xy_m)
+    escaping = (
+        np.hypot(a.state.x_m - b.state.x_m, a.state.y_m - b.state.y_m) < required_m
+        and min(
+            np.hypot(a.state.x_m - base[0], a.state.y_m - base[1]),
+            np.hypot(b.state.x_m - base[0], b.state.y_m - base[1]),
+        )
+        >= limits.base_zone_radius_m
+    )
+    previous_m = np.inf
     for t in np.arange(0.0, limits.separation_horizon_s + 1e-9, 1.0):
         p = position_along((a.state.x_m, a.state.y_m), a.waypoints, a.speed_mps * t)
         q = position_along((b.state.x_m, b.state.y_m), b.waypoints, b.speed_mps * t)
-        near_base = min(np.hypot(*np.subtract(p, base_xy_m)), np.hypot(*np.subtract(q, base_xy_m)))
-        if near_base < limits.base_zone_radius_m:
+        if min(np.hypot(*(p - base)), np.hypot(*(q - base))) < limits.base_zone_radius_m:
             continue
         distance = float(np.hypot(*np.subtract(p, q)))
-        if distance < required_m:
+        closing = distance < previous_m - 1e-9  # previous_m is inf at the first sample
+        previous_m = distance
+        counts = (t > 0.0 and closing) if escaping else True
+        if distance < required_m and counts:
             return float(t), distance
     return None
 

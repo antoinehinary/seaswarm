@@ -275,3 +275,17 @@ crosswind lobes, current at the map mean, predict up to 60 s behind the looks).
   became an actual 26-29 m approach.
 - **Alternatives:** model deceleration inside the projection (more code, same effect); larger
   fixed separation minima (changes the brief's rules).
+
+## 2026-11-03 — Separation escape exception
+
+- **Decision:** when two vehicles are already closer than the separation-plus-braking threshold
+  outside the base zone, a plan only counts as a conflict if it brings them closer still; in all
+  other cases the strict rule applies.
+- **Why:** a search-only run had two held USVs ~50 m apart: every path for either (even straight
+  away) was refused at t = 0, a refusal every step and a drift into violation. Two simpler
+  versions failed and were measured: "never closer than now" let USVs launched together from the
+  base (distance 0) diverge too slowly with no check at all (every USV run violated), and
+  "only closing counts everywhere" did the same. Scoping the exception to pairs already too close
+  outside the base zone gives zero violations in all 300 two-USV search-only runs.
+- **Alternatives:** a minimum hold distance larger than the threshold (would need a model of the
+  stopping manoeuvre).

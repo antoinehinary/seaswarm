@@ -194,3 +194,14 @@ def test_a_returning_vehicle_does_not_give_way_to_one_in_transit() -> None:
         held += guard.held
     assert "drone_1" not in held
     assert guard.violations.separation == 0
+
+
+def test_vehicles_already_too_close_may_always_move_apart() -> None:
+    # regression: two held USVs 50 m apart refused every path (even straight away) forever
+    sim, guard = _world(drones=0, usvs=2)
+    _place(sim, "usv_1", 0.0, 0.0)
+    _place(sim, "usv_2", 52.0, 0.0)
+    refusal = guard.submit(Proposal(GoTo("usv_2", -500.0, 0.0, 4.0)), sim.t_s)
+    assert refusal is not None and refusal.code is RefusalCode.SEPARATION  # closing in: refused
+    assert guard.submit(Proposal(GoTo("usv_2", 2000.0, 0.0, 4.0)), sim.t_s) is None  # away: ok
+    assert guard.submit(Proposal(GoTo("usv_1", -2000.0, 0.0, 4.0)), sim.t_s) is None
