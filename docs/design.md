@@ -250,7 +250,7 @@ Every command goes through `SafetyGuard`, which refuses with a code and a one-se
 | Rule | Code |
 | --- | --- |
 | Every waypoint inside the geofence (rectangle around area and base + 1 km; convex, so legs too) | `GEOFENCE` |
-| No predicted approach below 30 m (drones, same layer) / 50 m (USVs) within 30 s; not near base | `SEPARATION` |
+| No predicted approach within 30 s below 30 m (drones, same layer) / 50 m (USVs) plus the braking distance `v^2 / 2a`; not within 100 m of the base; a pair already too close may always move apart | `SEPARATION` |
 | Energy after the task still covers the return with the reserve | `ENERGY_RESERVE` |
 | One searcher per tile (dispatch to a detection exempt) | `TILE_OCCUPIED` |
 | Vehicle unknown, returning, in turnaround or stranded | `VEHICLE_UNAVAILABLE` |
