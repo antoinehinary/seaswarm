@@ -251,3 +251,15 @@ crosswind lobes, current at the map mean, predict up to 60 s behind the looks).
   with the watch and the heading fix, 120 runs across all fleets and strategies had none.
 - **Alternatives:** longer command-time horizon (still blind to later convergence), reactive
   avoidance manoeuvres (more realistic, harder to explain and to test).
+
+## 2026-11-03 — Effort-limited sweeps in the planners' utility (bug fix)
+
+- **Decision:** a tile's sweep uses the track length the vehicle can still afford (before it must
+  return with the reserve), capped at the full lawnmower, spread evenly over the tile; its POD is
+  Koopman's `1 - exp(-W L_eff / A)`. A tile is feasible if at least one track across it fits.
+- **Why:** at night the EO camera's POD falls to 0.1 and its sweep width to a few metres; the full
+  pattern over a 400 m tile then needs more than a battery, so every tile was "infeasible" and the
+  greedy and auction drones never launched at night (POS_cum@60 0.00 vs 0.19 for the lawnmower,
+  4 drones). With effort-limited sweeps: 0.31 (greedy and auction) vs 0.19.
+- **Alternatives:** a minimum track spacing (arbitrary), forbidding EO drones at night (hides the
+  planner flaw).

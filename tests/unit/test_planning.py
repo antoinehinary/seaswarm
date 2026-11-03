@@ -171,3 +171,24 @@ def test_lawnmower_strips_are_proportional_to_sweep_rate_and_resume() -> None:
     dx, dy = 0.3 * (2000.0 - 900.0), 0.1 * (2000.0 - 900.0)  # forecast drift since the start
     x10, y10 = planner.patterns["drone_1"][10]
     assert back["drone_1"].tasks[0].waypoints[0] == pytest.approx((x10 + dx, y10 + dy))
+
+
+def test_effort_limited_sweep_lets_a_weak_night_sensor_search() -> None:
+    # regression: at night the EO camera's sweep width is a few metres, so a full lawnmower of a
+    # tile is longer than a battery; every tile used to be infeasible and drones never launched
+    night = VehicleCapability.build(
+        "drone_1",
+        VehicleType.DRONE,
+        DEFAULTS.vehicles.drone,
+        DEFAULTS.sensors["drone_eo"],
+        False,
+        60.0,
+        DEFAULTS.planner,
+    )
+    view = MissionView(900.0, 900.0, BASE, FENCE, {"drone_1": night}, {}, (0.0, 0.0))
+    plan = GreedyPlanner(TILES).plan(
+        view, _blob(0.0, -3000.0), [_state("drone_1", *BASE)], OperatorPrefs()
+    )
+    task = plan["drone_1"].tasks[0]
+    assert task.expected_pos_gain > 0.0
+    assert len(task.waypoints) >= 2

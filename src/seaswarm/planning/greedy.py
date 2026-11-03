@@ -51,7 +51,9 @@ class GreedyPlanner:
             if own is not None:
                 claimed[self._index(own)] = False
             cap = view.capabilities[state.vehicle_id]
-            scores = tile_scores(state, cap, values, weights, centres, self.tiles.size_m, view)
+            scores, effort = tile_scores(
+                state, cap, values, weights, centres, self.tiles.size_m, view
+            )
             blocked = claimed.copy()
             for tile_id in view.excluded.get(state.vehicle_id, frozenset()) - {None}:
                 blocked[self._index(tile_id)] = True
@@ -63,7 +65,8 @@ class GreedyPlanner:
                 continue
             row, col = np.unravel_index(best, self.tiles.shape)
             claimed[row, col] = True
-            path = lawnmower(self.tiles.rect(row, col), cap.track_spacing_m, (state.x_m, state.y_m))
+            spacing = effort.spacing_m(cap, self.tiles.size_m, (row, col))
+            path = lawnmower(self.tiles.rect(row, col), spacing, (state.x_m, state.y_m))
             path = affordable_prefix(state, cap, path, view.base_xy_m)
             if not path:
                 continue

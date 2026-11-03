@@ -3,9 +3,13 @@
     U(vehicle, tile) = w_prio(tile) * expected_pos_gain / (t_travel + t_search)
     expected_pos_gain = POD_sweep * p(tile),  POD_sweep = 1 - exp(-W L / A)   (Koopman)
 
-W is the vehicle's effective sweep width, L the lawnmower track length over the tile, A the tile
-area. A tile is infeasible (U = -inf) if, after travelling there and searching it, the vehicle
-could not return to base with the energy reserve.
+W is the vehicle's effective sweep width, A the tile area and L the track length flown over the
+tile. Effort-limited search: L is the full lawnmower length (spacing W (1 - overlap)) if the
+vehicle can afford it, otherwise the length it can still fly before it must head home with the
+reserve; that effort is then spread evenly over the tile (spacing A / L). A tile is infeasible
+(U = -inf) if not even one track across it is affordable. Without this, a sensor with a tiny
+sweep width (an EO camera at night) makes every full pattern longer than a battery and the
+vehicle never leaves the base.
 """
 
 from __future__ import annotations
@@ -18,7 +22,6 @@ from numpy.typing import NDArray
 from seaswarm.planning.base import MissionView, VehicleCapability
 from seaswarm.planning.tiles import Rect, lawnmower_length_m
 from seaswarm.safety.rules import XY
-from seaswarm.search.pod import random_search_pod
 from seaswarm.vehicles.backend import VehicleState
 from seaswarm.vehicles.energy import drain_rate_per_s, rtb_energy_frac
 
@@ -47,6 +50,42 @@ def affordable_prefix(
 
 
 @dataclass(frozen=True)
+class Effort:
+    """Effort-limited sweep of tiles by one vehicle; arrays have the shape of the tile centres."""
+
+    travel_s: Array
+    search_s: Array
+    track_m: Array
+    pod: Array
+    feasible: Array
+
+    def spacing_m(self, cap: VehicleCapability, tile_size_m: float, index: tuple) -> float:
+        """Track spacing that spreads the affordable track length evenly over one tile."""
+        return max(cap.track_spacing_m, tile_size_m**2 / float(self.track_m[index]))
+
+
+def tile_effort(
+    state: VehicleState,
+    cap: VehicleCapability,
+    x_m: Array,
+    y_m: Array,
+    tile_size_m: float,
+    base_xy_m: XY,
+) -> Effort:
+    """Effort the vehicle can put into each tile centred at (x_m, y_m) on its current energy."""
+    speed = cap.cruise_speed_mps
+    rate = drain_rate_per_s(speed, cap.config)
+    travel_s = np.hypot(x_m - state.x_m, y_m - state.y_m) / speed
+    home_m = np.hypot(x_m - base_xy_m[0], y_m - base_xy_m[1])
+    spare = state.energy_frac - rate * travel_s - rtb_energy_frac(home_m, cap.config)
+    affordable_m = np.maximum(spare, 0.0) / rate * speed
+    full_m = lawnmower_length_m(Rect(0.0, 0.0, tile_size_m, tile_size_m), cap.track_spacing_m)
+    track_m = np.minimum(full_m, affordable_m)
+    pod = -np.expm1(-cap.sweep_width_m * track_m / tile_size_m**2)
+    return Effort(travel_s, track_m / speed, track_m, pod, track_m >= tile_size_m)
+
+
+@dataclass(frozen=True)
 class TileScores:
     """Per-tile utility and its ingredients for one vehicle, each shape (rows, cols)."""
 
@@ -63,18 +102,11 @@ def tile_scores(
     centres_m: tuple[Array, Array],
     tile_size_m: float,
     view: MissionView,
-) -> TileScores:
+) -> tuple[TileScores, Effort]:
     """Utility of every tile for one vehicle (travel measured to the tile centre)."""
-    cx, cy = centres_m
-    track_m = lawnmower_length_m(Rect(0.0, 0.0, tile_size_m, tile_size_m), cap.track_spacing_m)
-    pod = random_search_pod(cap.sweep_width_m, track_m, tile_size_m**2)
-    t_search = track_m / cap.cruise_speed_mps
-    t_travel = np.hypot(cx - state.x_m, cy - state.y_m) / cap.cruise_speed_mps
-    duration = t_travel + t_search
-    gain = weights * pod * values
-
-    energy_after = state.energy_frac - drain_rate_per_s(cap.cruise_speed_mps, cap.config) * duration
-    home_m = np.hypot(cx - view.base_xy_m[0], cy - view.base_xy_m[1])
-    needed = np.vectorize(lambda d: rtb_energy_frac(d, cap.config))(home_m)
-    utility = np.where(energy_after >= needed, gain / duration, -np.inf)
-    return TileScores(utility, gain, duration)
+    effort = tile_effort(state, cap, *centres_m, tile_size_m, view.base_xy_m)
+    duration = effort.travel_s + effort.search_s
+    gain = weights * effort.pod * values
+    with np.errstate(divide="ignore", invalid="ignore"):
+        utility = np.where(effort.feasible, gain / duration, -np.inf)
+    return TileScores(utility, gain, duration), effort
