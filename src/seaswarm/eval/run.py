@@ -62,6 +62,7 @@ class Row:
     pos_60min: float
     pos_120min: float
     refusals: int
+    tile_conflicts: int  # TILE_OCCUPIED refusals: two vehicles planned onto the same tile
     separation_violations: int
     geofence_violations: int
     stranded_vehicles: int
@@ -119,6 +120,7 @@ def run_job(job: Job) -> tuple[Row, list[float]]:
         pos_60min=round(curve[60], 6),
         pos_120min=round(curve[120], 6),
         refusals=len(full.refusals),
+        tile_conflicts=sum(r.code.value == "TILE_OCCUPIED" for r in full.refusals),
         separation_violations=v.separation,
         geofence_violations=v.geofence,
         stranded_vehicles=v.stranded,

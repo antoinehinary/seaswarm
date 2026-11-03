@@ -184,3 +184,56 @@ def write_report(out: Path) -> None:
         out / "plots" / "pos_vs_time.png",
         step=False,
     )
+
+
+def cbba_table(out: Path, reference: str = "auction") -> str:
+    """Markdown table comparing CBBA radio ranges with the central auction, per fleet.
+
+    Found within 60 min (95 % bootstrap interval), its paired difference with `reference` on the
+    same scenarios, the median time to find, and tile conflicts per run (TILE_OCCUPIED refusals:
+    two vehicles planned onto the same tile because they could not agree).
+    """
+    with (out / "results.csv").open() as f:
+        rows = list(csv.DictReader(f))
+    lines = [
+        "| Fleet | Strategy | Found <= 60 min | vs central auction | Median time to find "
+        "| Tile conflicts / run |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    fleets = _ordered({r["fleet"] for r in rows}, ["2D+1U", "4D", "2U", "4D+2U"])
+
+    def order(name: str) -> tuple[bool, float]:  # reference first, then widest radio range first
+        option = name.partition("@")[2]
+        return name != reference, -float(option) if option else -np.inf
+
+    strategies = sorted({r["strategy"] for r in rows}, key=order)
+    for fleet in fleets:
+        ref = sorted(
+            (r for r in rows if r["fleet"] == fleet and r["strategy"] == reference),
+            key=lambda r: int(r["seed"]),
+        )
+        ref_found = found_by(
+            [float(r["time_to_detection_s"]) for r in ref],
+            [r["detected"] == "True" for r in ref],
+            3600.0,
+        )
+        for strategy in strategies:
+            g = sorted(
+                (r for r in rows if r["fleet"] == fleet and r["strategy"] == strategy),
+                key=lambda r: int(r["seed"]),
+            )
+            times = [float(r["time_to_detection_s"]) for r in g]
+            found = [r["detected"] == "True" for r in g]
+            est, lo, hi = bootstrap_ci(found_by(times, found, 3600.0))
+            diff = "—"
+            if strategy != reference:
+                d, dlo, dhi = paired_difference(found_by(times, found, 3600.0), ref_found)
+                diff = f"{d:+.0%} [{dlo:+.0%}, {dhi:+.0%}]"
+            median = km_median_s(times, found)
+            median_text = f"{median / 60:.1f} min" if np.isfinite(median) else "—"
+            conflicts = np.mean([int(r["tile_conflicts"]) for r in g])
+            lines.append(
+                f"| {fleet} | {strategy} | {est:.0%} [{lo:.0%}, {hi:.0%}] | {diff} | {median_text} "
+                f"| {conflicts:.1f} |"
+            )
+    return "\n".join(lines)

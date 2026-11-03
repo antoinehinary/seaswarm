@@ -316,6 +316,39 @@ identical for every seed, which a test checks.
 - Intervals: 95 % percentile bootstrap over scenarios, fixed seed. Strategy comparisons are
   paired on identical scenarios and seeds, which removes scenario-to-scenario variance.
 
+### 5.7 Decentralised allocation: CBBA (stretch)
+
+`CBBAPlanner` (Choi, Brunet and How 2009) allocates the auction's tasks with the same
+time-discounted bundle score, but without an auctioneer: each vehicle only exchanges messages
+with vehicles within radio range. Rounds alternate bundle construction (add tasks whose marginal
+gain beats the best known bid), consensus (merge neighbours' winning bids, winners and
+timestamps with the paper's update / reset / leave table) and release (a vehicle outbid on a task
+drops it and every task it added afterwards). It stops when a round changes nothing. The belief
+is shared (as if broadcast); only the allocation is decentralised.
+
+Evaluation, 50 generated scenarios per fleet, `results/cbba/` (`--strategy auction,cbba@inf,
+cbba@3000,cbba@1000,cbba@300`), zero safety violations in 500 runs:
+
+| Fleet | Strategy | Found <= 60 min | vs central auction | Median time to find | Tile conflicts / run |
+| --- | --- | --- | --- | --- | --- |
+| 2D+1U | auction | 68% [56%, 80%] | — | 34.4 min | 0.0 |
+| 2D+1U | cbba@inf | 68% [56%, 80%] | +0% [+0%, +0%] | 34.4 min | 0.0 |
+| 2D+1U | cbba@3000 | 72% [60%, 84%] | +4% [-10%, +18%] | 33.6 min | 0.8 |
+| 2D+1U | cbba@1000 | 68% [54%, 80%] | +0% [-12%, +10%] | 32.9 min | 2.3 |
+| 2D+1U | cbba@300 | 70% [56%, 82%] | +2% [-10%, +16%] | 32.0 min | 4.9 |
+| 4D+2U | auction | 80% [68%, 90%] | — | 30.0 min | 0.0 |
+| 4D+2U | cbba@inf | 86% [76%, 94%] | +6% [+0%, +14%] | 26.5 min | 0.0 |
+| 4D+2U | cbba@3000 | 78% [66%, 88%] | -2% [-12%, +6%] | 34.2 min | 1.8 |
+| 4D+2U | cbba@1000 | 86% [76%, 94%] | +6% [-6%, +20%] | 24.3 min | 5.4 |
+| 4D+2U | cbba@300 | 86% [76%, 94%] | +6% [-6%, +20%] | 28.0 min | 14.1 |
+
+- With full communication CBBA matches the central auction (identical with 2 drones + 1 USV).
+- Shorter radio range multiplies tile conflicts (vehicles that cannot hear each other plan onto
+  the same tile), but outcomes do not degrade: every paired interval includes zero. The safety
+  layer refuses the second vehicle (one searcher per tile) and the next replan resolves it, and
+  vehicles searching the same high-probability area are usually within range of each other.
+  The cost of poor communication is wasted proposals and replanning, not missed persons.
+
 ## 6. Operator agent and MCP server
 
 ### 6.1 Layers

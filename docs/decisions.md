@@ -326,3 +326,17 @@ crosswind lobes, current at the map mean, predict up to 60 s behind the looks).
 - **Next option if needed:** make the tool refuse with an explicit instruction ("report this to
   the operator") as skypilot-agent's refusals do, or evaluate a larger model through
   `SEASWARM_MODEL_ID`.
+
+## 2026-11-03 — Stretch: decentralised CBBA on the auction's score
+
+- **Decision:** implement CBBA as a subclass of the auction planner (same tasks, same
+  time-discounted bundle score, same receding horizon), with a communication graph of vehicles
+  within a radio range (strategies `cbba`, `cbba@<range_m>`, `cbba@inf`); the probability map
+  stays shared.
+- **Why:** comparing it with the central auction then isolates the effect of communication.
+  Result (500 runs): equal to the central auction with full communication; shorter range raises
+  tile conflicts up to 14 per run but not the time to find the person, because the safety layer
+  catches duplicates and replanning resolves them.
+- **Alternatives:** decentralised belief too (each vehicle fusing only what it hears: a much
+  larger change, data fusion rather than allocation); distributed auction without consensus
+  timestamps (no convergence guarantee).

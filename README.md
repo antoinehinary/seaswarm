@@ -97,6 +97,14 @@ are not significant); greedy and auction are statistically tied. **Zero safety v
 600 runs.** Full table with 95 % bootstrap intervals and paired comparisons:
 [results/summary.md](results/summary.md).
 
+### Decentralised allocation (CBBA)
+
+The auction also runs as **CBBA** (consensus-based bundle algorithm): no auctioneer, vehicles
+only exchange bids with neighbours within radio range. With full communication it matches the
+central auction; at 300 m range, tile conflicts rise to 5-14 per run, yet the fraction found
+within 60 min does not drop (every paired interval includes zero): the safety layer refuses the
+duplicate and the next replan resolves it. Table in [docs/design.md](docs/design.md#57-decentralised-allocation-cbba-stretch).
+
 ### Operator agent: 9/10 instructions with a local 8B model
 
 Ten plain-language instructions with machine-checked outcomes ("focus on the north-east for 20
@@ -128,8 +136,9 @@ drift model and its spread within 2 %; against 100 000 particles the Hellinger d
 - **Search theory:** effective sweep width W per sensor (Koopman), track spacing from W, POD of
   a sweep `1 - exp(-W L / A)` on the effort the battery allows; utility
   `w_prio x POD x p(tile) / (travel + search time)`.
-- **Auction:** sequential single-item auction with bundles of 3 tiles and a time-discounted
-  reward (the centralised core of CBBA), written as bid/award messages.
+- **Auction and CBBA:** sequential single-item auction with bundles of 3 tiles and a
+  time-discounted reward, and its decentralised version CBBA (consensus over a range-limited
+  radio network).
 - **Evaluation:** Kaplan-Meier "fraction found vs time" (censored runs), bootstrap intervals,
   paired comparisons on identical seeds; `results.csv` is byte-identical for any number of
   workers.
@@ -159,6 +168,7 @@ drift model and its spread within 2 %; against 100 000 particles the Hellinger d
 - Drones ignore wind; separation predictions assume straight legs; there is no launch or
   approach sequencing at the base.
 - The operator agent can substitute its own choice when an order is refused (1 of 10 cases).
+- CBBA decentralises the allocation only: every vehicle uses the same probability map.
 
 ## References
 
