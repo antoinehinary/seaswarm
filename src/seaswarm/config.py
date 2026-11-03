@@ -10,6 +10,7 @@ frame and may lie outside the area.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
@@ -316,6 +317,29 @@ class Scenario(_Model):
         return self
 
 
+# --------------------------------------------------------------------------- agent.yaml
+
+
+class OllamaConfig(_Model):
+    """Options sent only to Ollama models (agent.yaml `ollama`)."""
+
+    num_ctx: PositiveInt
+    think: bool
+
+
+class AgentConfig(_Model):
+    """Operator agent and LLM parameters (config/agent.yaml)."""
+
+    model_id: str
+    api_base: str
+    request_timeout_s: PositiveFloat
+    max_tokens: PositiveInt | None
+    temperature: NonNegativeFloat
+    seed: int | None
+    max_steps: PositiveInt
+    ollama: OllamaConfig
+
+
 # --------------------------------------------------------------------------- loaders
 
 
@@ -349,3 +373,16 @@ def load_scenario(path: Path, defaults: DefaultConfig | None = None) -> Scenario
             f"not one of {sorted(known)}"
         )
     return scenario
+
+
+def load_agent_config(path: Path | None = None) -> AgentConfig:
+    """Load the agent config (default: `config/agent.yaml`).
+
+    The SEASWARM_MODEL_ID and OLLAMA_BASE_URL environment variables override `model_id` and
+    `api_base`.
+    """
+    raw = _load_yaml(path or CONFIG_DIR / "agent.yaml")
+    for key, env in (("model_id", "SEASWARM_MODEL_ID"), ("api_base", "OLLAMA_BASE_URL")):
+        if os.environ.get(env):
+            raw[key] = os.environ[env]
+    return AgentConfig.model_validate(raw)

@@ -32,13 +32,16 @@ dev = [
 ]
 
 [project.scripts]
-# seaswarm-agent = "seaswarm.agent.cli:main"   # Phase 5
+seaswarm-agent = "seaswarm.agent.cli:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "seaswarm.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"seaswarm.agent" = ["prompts/*.md"]
 
 [tool.ruff]
 line-length = 100

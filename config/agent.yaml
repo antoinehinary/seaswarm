@@ -1,0 +1,15 @@
+# Operator agent and LLM parameters. SEASWARM_MODEL_ID / OLLAMA_BASE_URL environment variables
+# (or a .env file) override model_id / api_base; the --model CLI flag overrides both.
+
+model_id: ollama_chat/qwen3:8b
+api_base: http://localhost:11434
+request_timeout_s: 180      # per LLM call
+max_tokens: 2048            # cap per reply
+temperature: 0.0            # greedy decoding
+seed: 42                    # repeatable within a session (Ollama may still vary across sessions)
+max_steps: 12               # agent steps per instruction before giving up
+
+# Only sent when model_id targets Ollama.
+ollama:
+  num_ctx: 32768            # Ollama's default context silently truncates the tool descriptions
+  think: false              # qwen3 thinking mode: much slower for the same tool calls
