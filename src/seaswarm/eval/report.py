@@ -52,6 +52,8 @@ def _ordered(names: set[str], order: list[str]) -> list[str]:
 def write_report(out: Path) -> None:
     """Write summary.md and plots/*.png into `out`."""
     rows = _load(out)
+    note = out / "interpretation.md"  # written by the author, never overwritten
+    interpretation = note.read_text().strip() if note.exists() else "_To be written by the author._"
     strategies = _ordered({r["strategy"] for r in rows}, list(STYLE))
     fleets = _ordered({r["fleet"] for r in rows}, ["2D+1U", "4D", "2U", "4D+2U"])
     group = {
@@ -152,7 +154,7 @@ def write_report(out: Path) -> None:
         "",
         "## Interpretation",
         "",
-        "_To be written by the author (3 sentences)._",
+        interpretation,
         "",
     ]
     (out / "summary.md").write_text("\n".join(lines))

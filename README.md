@@ -21,7 +21,7 @@ position, current, and wind-driven leeway with time-correlated noise and random 
 ```bash
 conda create -n seaswarm python=3.12 -y && conda activate seaswarm
 pip install -e ".[dev]"
-python scripts/run_search.py --scenario scenarios/windy_mixed.yaml --strategy greedy --seed 3 --gif media/search_greedy_seed3.gif
+python scripts/run_search.py --scenario scenarios/windy_mixed.yaml --strategy auction --seed 3 --gif media/search_auction_seed3.gif
 ```
 
 ## Status
@@ -31,7 +31,7 @@ python scripts/run_search.py --scenario scenarios/windy_mixed.yaml --strategy gr
 | 1 | World and drift | done |
 | 2 | Probability map | done |
 | 3 | Vehicles, safety and baseline search | done |
-| 4 | Auction planner and evaluation | in progress |
+| 4 | Auction planner and evaluation | in review |
 | 5 | Operator agent and MCP server | not started |
 | 6 | Polish, publish and stretch | not started |
 
@@ -41,12 +41,22 @@ python scripts/run_search.py --scenario scenarios/windy_mixed.yaml --strategy gr
 the nearest USV recovers the person. The true position is not shown: the swarm only knows the
 map.*
 
-| Fleet 2 drones + 1 USV, 20 seeds | Detected within 60 min | Median time to detection |
-| --- | --- | --- |
-| windy_mixed, lawnmower baseline | 11/20 | 47.5 min |
-| windy_mixed, Bayesian greedy | 16/20 | 30.2 min |
-| calm_single, lawnmower baseline | 14/20 | 28.3 min |
-| calm_single, Bayesian greedy | 20/20 | 16.4 min |
+### Results: 50 random scenarios x 4 fleets x 3 strategies
+
+![Fraction of persons found vs time, per fleet and strategy](media/results_found_vs_time.png)
+
+| Fleet | Found within 60 min: lawnmower | greedy | auction | Median time to find (best) |
+| --- | --- | --- | --- | --- |
+| 2 drones + 1 USV | 46% | 64% | 68% | 34 min (auction) |
+| 4 drones | 38% | 60% | 52% | 36 min (greedy) |
+| 2 USVs | 34% | 70% | 74% | 37 min (auction) |
+| 4 drones + 2 USVs | 54% | 76% | 80% | 30 min (auction) |
+
+Greedy search of the probability map beats the fixed lawnmower baseline in every fleet, and the
+bundle auction in three of four (paired over the same scenarios; with 4 drones its +14 points
+are not significant); greedy and auction are statistically tied. 600 runs, zero safety
+violations. Full table with 95 % bootstrap intervals and paired comparisons:
+[results/summary.md](results/summary.md).
 
 ![Probability map vs 5000 drift particles after 2 hours](media/belief_vs_particles.png)
 

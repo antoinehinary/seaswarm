@@ -15,6 +15,7 @@ dist/
 results/*
 !results/README.md
 !results/summary.md
+!results/interpretation.md
 runs/
 data/cache/
 media/tmp/

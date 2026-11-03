@@ -39,14 +39,18 @@ def _style_axes(ax: Axes, title: str) -> None:
     ax.tick_params(colors=MUTED, labelsize=8)
 
 
-def _label_ends(ax: Axes, ends: dict[str, tuple[float, float]]) -> None:
-    """Direct labels at the line ends, nudged apart vertically (text in ink, not series colour)."""
-    placed: list[float] = []
-    for name, (x, y) in sorted(ends.items(), key=lambda kv: kv[1][1]):
-        y_text = y
-        while any(abs(y_text - p) < 0.06 for p in placed):
-            y_text += 0.06
-        placed.append(y_text)
+def _label_ends(ax: Axes, ends: dict[str, tuple[float, float]], gap: float = 0.06) -> None:
+    """Direct labels at the line ends, spread at least `gap` apart and kept inside [0, 1].
+
+    Text is in ink, not in the series colour; the line style beside it carries the identity.
+    """
+    names = sorted(ends, key=lambda n: ends[n][1])
+    ys = [ends[n][1] for n in names]
+    for i in range(1, len(ys)):  # push up to keep the gap
+        ys[i] = max(ys[i], ys[i - 1] + gap)
+    overflow = max(0.0, ys[-1] - 1.0) if ys else 0.0
+    for name, y_text in zip(names, (y - overflow for y in ys), strict=True):  # then shift down
+        x, y = ends[name]
         ax.annotate(
             name,
             (x, y),
